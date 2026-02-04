@@ -27,7 +27,6 @@ export function RegenerateButton({ profileId }: RegenerateButtonProps) {
       router.refresh()
     } catch (error) {
       console.error('Regenerate error:', error)
-      alert('Failed to regenerate')
     } finally {
       setLoading(false)
     }
@@ -37,14 +36,10 @@ export function RegenerateButton({ profileId }: RegenerateButtonProps) {
     <button
       onClick={handleRegenerate}
       disabled={loading}
-      title="Regenerate bio"
-      className="text-zinc-500 transition-colors hover:text-white disabled:opacity-50"
+      title="Regenerate identity"
+      className="font-mono text-xs text-zinc-600 transition-colors hover:text-fuchsia-400 disabled:opacity-50"
     >
-      {loading ? (
-        <span className="inline-block h-5 w-5 animate-spin">⟳</span>
-      ) : (
-        <span className="text-lg">🔄</span>
-      )}
+      {loading ? '[...]' : '[REGEN]'}
     </button>
   )
 }

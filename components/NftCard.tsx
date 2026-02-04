@@ -37,8 +37,8 @@ export function NftCard({ nft, ownerAddress }: NftCardProps) {
       const data = await response.json()
 
       if (response.status === 409) {
-        // Already claimed, redirect to profile
-        router.push(`/profile/${nft.contractAddress}/${nft.tokenId}`)
+        // Already claimed, redirect to runner profile
+        router.push(`/runner/${nft.tokenId}`)
         return
       }
 
@@ -46,8 +46,8 @@ export function NftCard({ nft, ownerAddress }: NftCardProps) {
         throw new Error(data.error || 'Failed to claim')
       }
 
-      // Success - redirect to profile
-      router.push(`/profile/${data.contractAddress}/${data.tokenId}`)
+      // Success - redirect to runner profile
+      router.push(`/runner/${nft.tokenId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to claim')
       setClaiming(false)
@@ -57,7 +57,7 @@ export function NftCard({ nft, ownerAddress }: NftCardProps) {
   return (
     <div
       onClick={!claiming ? handleClaim : undefined}
-      className="group cursor-pointer overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition-colors hover:border-zinc-700"
+      className="group cursor-pointer overflow-hidden border border-zinc-800 bg-zinc-900/50 transition-all hover:border-fuchsia-600"
     >
       <div className="relative aspect-square bg-zinc-800">
         {nft.imageUrl ? (
@@ -65,29 +65,30 @@ export function NftCard({ nft, ownerAddress }: NftCardProps) {
             src={nft.imageUrl}
             alt={nft.name || 'NFT'}
             fill
-            className="object-cover"
+            className="object-cover transition-opacity group-hover:opacity-80"
             unoptimized
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-zinc-600">
-            No image
+          <div className="flex h-full items-center justify-center font-mono text-xs text-zinc-600">
+            NO_VISUAL
           </div>
         )}
+        {/* Hover overlay */}
+        <div className={`absolute inset-0 flex items-center justify-center bg-black/60 transition-opacity ${claiming ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <span className="border border-fuchsia-500 bg-black/80 px-3 py-2 font-mono text-xs text-fuchsia-400">
+            {claiming ? '// ACTIVATING...' : '[ ACTIVATE ]'}
+          </span>
+        </div>
       </div>
       <div className="p-3">
-        <p className="truncate text-sm font-medium">
-          {nft.name || `#${nft.tokenId}`}
+        <p className="truncate font-mono text-sm text-zinc-300">
+          {nft.name || `Runner #${nft.tokenId}`}
         </p>
-        <p className="truncate text-xs text-zinc-500">
-          {nft.collectionName}
+        <p className="font-mono text-xs text-zinc-600">
+          #{nft.tokenId}
         </p>
-        <div className={`mt-3 h-9 transition-opacity ${claiming ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-          <div className={`w-full rounded-md px-3 py-2 text-center text-sm font-medium ${claiming ? 'bg-zinc-700 text-white' : 'bg-white text-black'}`}>
-            {claiming ? 'Claiming...' : 'Claim'}
-          </div>
-        </div>
         {error && (
-          <p className="mt-2 text-xs text-red-400">{error}</p>
+          <p className="mt-2 font-mono text-xs text-red-400">ERROR: {error}</p>
         )}
       </div>
     </div>

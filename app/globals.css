@@ -56,3 +56,26 @@ body {
   inset: 0;
   background: linear-gradient(to bottom, #000 0%, transparent 30%, transparent 70%, #000 100%);
 }
+
+/* Glitch text effect */
+@keyframes glitch {
+  0%, 90%, 100% {
+    text-shadow: none;
+  }
+  92% {
+    text-shadow: 2px 0 #00ffff, -2px 0 #ff00ff;
+  }
+  94% {
+    text-shadow: -2px 0 #00ffff, 2px 0 #ff00ff;
+  }
+  96% {
+    text-shadow: 2px 2px #00ffff, -2px -2px #ff00ff;
+  }
+  98% {
+    text-shadow: -2px 2px #00ffff, 2px -2px #ff00ff;
+  }
+}
+
+.glitch-text {
+  animation: glitch 4s infinite;
+}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { verifyNftOwnership } from '@/lib/alchemy/nfts'
+import { verifyNftOwnership, getNftMetadata } from '@/lib/alchemy/nfts'
 import { getCollectionLore, getCollectionName, type CollectionLore } from '@/lib/collections/lore'
 import type { Database } from '@/types/database'
 
@@ -12,7 +12,7 @@ const supabase = createClient<Database>(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { walletAddress, contractAddress, tokenId, name, imageUrl, traits, collectionName } = body
+    let { walletAddress, contractAddress, tokenId, name, imageUrl, traits, collectionName } = body
 
     if (!walletAddress || !contractAddress || !tokenId) {
       return NextResponse.json(
@@ -28,6 +28,20 @@ export async function POST(request: NextRequest) {
         { error: 'You do not own this NFT' },
         { status: 403 }
       )
+    }
+
+    // If NFT metadata not provided, fetch from Alchemy
+    if (!name || !imageUrl || !traits) {
+      const nftMetadata = await getNftMetadata(contractAddress, tokenId)
+      if (nftMetadata) {
+        name = name || nftMetadata.name || `NFT #${tokenId}`
+        imageUrl = imageUrl || nftMetadata.image?.cachedUrl || nftMetadata.image?.originalUrl
+        traits = traits || (nftMetadata.raw?.metadata?.attributes as Array<{ trait_type: string; value: string }>) || []
+      } else {
+        // Default values if Alchemy fetch fails
+        name = name || `NFT #${tokenId}`
+        traits = traits || []
+      }
     }
 
     // Check if already claimed
@@ -73,10 +87,13 @@ export async function POST(request: NextRequest) {
     const lore = getCollectionLore(contractAddress)
     const resolvedCollectionName = getCollectionName(contractAddress, collectionName)
 
+    // Ensure traits is an array
+    const safeTraits = Array.isArray(traits) ? traits : []
+
     // Generate AI constitution with collection lore
-    const constitution = generateConstitution(name, traits, lore)
+    const constitution = generateConstitution(name, safeTraits, lore)
     const systemPrompt = generateSystemPrompt(constitution, name, lore)
-    const bio = generateBio(constitution, name, lore, resolvedCollectionName, traits)
+    const bio = generateBio(constitution, name, lore, resolvedCollectionName, safeTraits)
 
     // Create NFT profile
     const { data: profile, error: profileError } = await supabase
@@ -87,7 +104,7 @@ export async function POST(request: NextRequest) {
         owner_id: user.id,
         name: name || `NFT #${tokenId}`,
         image_url: imageUrl,
-        traits: traits,
+        traits: safeTraits,
         ai_constitution: constitution,
         ai_system_prompt: systemPrompt,
         bio: bio,

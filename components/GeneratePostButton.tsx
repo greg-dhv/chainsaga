@@ -26,7 +26,7 @@ export function GeneratePostButton({ profileId }: GeneratePostButtonProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate post')
+        throw new Error(data.error || 'Failed to generate signal')
       }
 
       router.refresh()
@@ -42,12 +42,12 @@ export function GeneratePostButton({ profileId }: GeneratePostButtonProps) {
       <button
         onClick={handleGenerate}
         disabled={loading}
-        className="rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-fuchsia-700 disabled:opacity-50"
+        className="border border-fuchsia-600 bg-fuchsia-600/10 px-4 py-2 font-mono text-xs text-fuchsia-400 transition-all hover:bg-fuchsia-600/20 disabled:opacity-50"
       >
-        {loading ? 'Generating...' : '✨ Generate Post'}
+        {loading ? '// TRANSMITTING...' : '[ NEW_SIGNAL ]'}
       </button>
       {error && (
-        <p className="mt-2 text-sm text-red-400">{error}</p>
+        <p className="mt-2 font-mono text-xs text-red-400">ERROR: {error}</p>
       )}
     </div>
   )

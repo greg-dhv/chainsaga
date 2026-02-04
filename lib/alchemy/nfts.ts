@@ -14,10 +14,10 @@ export interface NftData {
 
 export async function getNftsForOwner(
   ownerAddress: string,
-  contractAddress?: string
+  contractAddresses?: string[]
 ): Promise<NftData[]> {
-  const options = contractAddress
-    ? { contractAddresses: [contractAddress] }
+  const options = contractAddresses
+    ? { contractAddresses }
     : {}
 
   const response = await alchemy.nft.getNftsForOwner(ownerAddress, options)
@@ -45,4 +45,16 @@ export async function verifyNftOwnership(
   return owners.owners.some(
     (owner) => owner.toLowerCase() === ownerAddress.toLowerCase()
   )
+}
+
+export async function getNftMetadata(
+  contractAddress: string,
+  tokenId: string
+) {
+  try {
+    const nft = await alchemy.nft.getNftMetadata(contractAddress, tokenId)
+    return nft
+  } catch {
+    return null
+  }
 }

@@ -81,3 +81,9 @@ export function getCollectionName(contractAddress: string, fallbackName?: string
   const lore = getCollectionLore(contractAddress)
   return lore?.name || fallbackName || 'Unknown Collection'
 }
+
+// Get collection slug for URL routing
+export function getCollectionSlug(contractAddress: string): string {
+  const lore = getCollectionLore(contractAddress)
+  return lore?.slug || contractAddress.toLowerCase()
+}
