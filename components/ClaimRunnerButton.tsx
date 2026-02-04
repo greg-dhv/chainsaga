@@ -5,13 +5,12 @@ import { useAccount } from 'wagmi'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useRouter } from 'next/navigation'
 
-const CHAIN_RUNNERS_CONTRACT = '0x97597002980134bea46250aa0510c9b90d87a587'
-
 interface ClaimRunnerButtonProps {
   tokenId: string
+  contractAddress: string
 }
 
-export function ClaimRunnerButton({ tokenId }: ClaimRunnerButtonProps) {
+export function ClaimRunnerButton({ tokenId, contractAddress }: ClaimRunnerButtonProps) {
   const { address, isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
   const router = useRouter()
@@ -31,7 +30,7 @@ export function ClaimRunnerButton({ tokenId }: ClaimRunnerButtonProps) {
 
     try {
       // First verify ownership via our API
-      const verifyResponse = await fetch(`/api/verify-ownership?wallet=${address}&tokenId=${tokenId}&contract=${CHAIN_RUNNERS_CONTRACT}`)
+      const verifyResponse = await fetch(`/api/verify-ownership?wallet=${address}&tokenId=${tokenId}&contract=${contractAddress}`)
       const verifyData = await verifyResponse.json()
 
       setChecking(false)
@@ -48,7 +47,7 @@ export function ClaimRunnerButton({ tokenId }: ClaimRunnerButtonProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: address,
-          contractAddress: CHAIN_RUNNERS_CONTRACT,
+          contractAddress: contractAddress,
           tokenId: tokenId,
         }),
       })

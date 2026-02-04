@@ -6,52 +6,122 @@ import { getNftMetadata } from '@/lib/alchemy/nfts'
 import { ClaimRunnerButton } from '@/components/ClaimRunnerButton'
 import { OwnerControls } from '@/components/OwnerControls'
 
-const CHAIN_RUNNERS_CONTRACT = '0x97597002980134bea46250aa0510c9b90d87a587'
-
 interface RunnerPageProps {
   params: Promise<{
     id: string
   }>
 }
 
+interface Universe {
+  slug: string
+  name: string
+  primary_color: string | null
+  font_style: string | null
+  wording: {
+    post: string
+    posts: string
+    status_active: string
+    status_inactive: string
+  } | null
+}
+
+interface Profile {
+  id: string
+  contract_address: string
+  token_id: string
+  name: string
+  image_url: string | null
+  bio: string | null
+  traits: Array<{ trait_type: string; value: string }>
+  users: { wallet_address: string; ens_name: string | null } | null
+}
+
 export default async function RunnerPage({ params }: RunnerPageProps) {
-  const { id: tokenId } = await params
+  const { id } = await params
   const supabase = await createClient()
 
-  // Check if runner is claimed (exists in DB)
-  const { data: profile } = await supabase
-    .from('nft_profiles')
-    .select(`
-      *,
-      users (wallet_address, ens_name)
-    `)
-    .eq('contract_address', CHAIN_RUNNERS_CONTRACT)
-    .eq('token_id', tokenId)
-    .single()
-
-  // If claimed, fetch signals
+  let profile: Profile | null = null
+  let universe: Universe | null = null
   let signals: Array<{ id: string; content: string; created_at: string }> = []
-  if (profile) {
+
+  // Check if ID is a UUID (profile ID) or a token ID
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+
+  if (isUuid) {
+    // Look up by profile UUID
     const { data } = await supabase
+      .from('nft_profiles')
+      .select(`
+        *,
+        users (wallet_address, ens_name)
+      `)
+      .eq('id', id)
+      .single()
+
+    if (data) {
+      profile = data as unknown as Profile
+    }
+  } else {
+    // It's a token ID - we need to find which universe/contract it belongs to
+    // First check if there's a claimed profile with this token ID
+    const { data } = await supabase
+      .from('nft_profiles')
+      .select(`
+        *,
+        users (wallet_address, ens_name)
+      `)
+      .eq('token_id', id)
+      .single()
+
+    if (data) {
+      profile = data as unknown as Profile
+    }
+  }
+
+  // If we found a profile, get its universe
+  if (profile) {
+    const { data: universeData } = await supabase
+      .from('universes')
+      .select('slug, name, primary_color, font_style, wording')
+      .eq('contract_address', profile.contract_address)
+      .single()
+
+    universe = universeData as unknown as Universe
+
+    // Fetch signals
+    const { data: signalsData } = await supabase
       .from('posts')
       .select('id, content, created_at')
       .eq('nft_profile_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(50)
-    signals = data || []
+
+    signals = signalsData || []
   }
 
-  // If not claimed, fetch from Alchemy
-  let alchemyData: { name: string; imageUrl: string; traits: Array<{ trait_type: string; value: string }> } | null = null
-  if (!profile) {
+  // If no profile found and it's a token ID, try to fetch from Alchemy
+  // We need to know which contract - for now, show 404 for unclaimed non-Chain-Runners
+  let alchemyData: { name: string; imageUrl: string; traits: Array<{ trait_type: string; value: string }>; contractAddress: string } | null = null
+
+  if (!profile && !isUuid) {
+    // Try Chain Runners first (most common)
+    const CHAIN_RUNNERS_CONTRACT = '0x97597002980134bea46250aa0510c9b90d87a587'
     try {
-      const nft = await getNftMetadata(CHAIN_RUNNERS_CONTRACT, tokenId)
+      const nft = await getNftMetadata(CHAIN_RUNNERS_CONTRACT, id)
       if (nft) {
         alchemyData = {
-          name: nft.name || `Chain Runner #${tokenId}`,
+          name: nft.name || `Runner #${id}`,
           imageUrl: nft.image?.cachedUrl || nft.image?.originalUrl || '',
           traits: (nft.raw?.metadata?.attributes as Array<{ trait_type: string; value: string }>) || [],
+          contractAddress: CHAIN_RUNNERS_CONTRACT,
         }
+        // Get Chain Runners universe
+        const { data: crUniverse } = await supabase
+          .from('universes')
+          .select('slug, name, primary_color, font_style, wording')
+          .eq('contract_address', CHAIN_RUNNERS_CONTRACT)
+          .single()
+        universe = crUniverse as unknown as Universe
       }
     } catch {
       // NFT doesn't exist
@@ -64,26 +134,43 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
   }
 
   const isClaimed = !!profile
-  const name = profile?.name || alchemyData?.name || `Runner #${tokenId}`
+  const name = profile?.name || alchemyData?.name || `#${id}`
   const imageUrl = profile?.image_url || alchemyData?.imageUrl
   const traits = (profile?.traits as Array<{ trait_type: string; value: string }>) || alchemyData?.traits || []
-  const owner = profile?.users as { wallet_address: string; ens_name: string | null } | null
+  const owner = profile?.users
+  const tokenId = profile?.token_id || id
+  const contractAddress = profile?.contract_address || alchemyData?.contractAddress
+
+  // Get universe-specific styling
+  const primaryColor = universe?.primary_color || '#d946ef'
+  const fontStyle = universe?.font_style || 'mono'
+  const wording = universe?.wording || {
+    post: 'signal',
+    posts: 'signals',
+    status_active: 'Transmitting',
+    status_inactive: 'Silent',
+  }
+  const universeSlug = universe?.slug || 'chain-runners'
+  const isChainRunners = universeSlug === 'chain-runners'
+
+  const fontClass = fontStyle === 'mono' ? 'font-mono' : fontStyle === 'serif' ? 'font-serif' : 'font-sans'
 
   return (
     <div className="min-h-screen bg-black text-white">
       <main className="mx-auto max-w-4xl px-4 py-8">
         {/* Back link */}
         <Link
-          href="/universe/chain-runners"
-          className="font-mono text-sm text-zinc-600 hover:text-fuchsia-400"
+          href={`/universe/${universeSlug}`}
+          className={`${fontClass} text-sm hover:opacity-80`}
+          style={{ color: `${primaryColor}88` }}
         >
-          &lt; RETURN_TO_FEED
+          {isChainRunners ? '< RETURN_TO_FEED' : `← Back to ${universe?.name || 'Feed'}`}
         </Link>
 
         <div className="mt-6 flex flex-col gap-8 md:flex-row">
           {/* Runner Image & Info */}
           <div className="w-full md:w-1/3">
-            <div className="relative aspect-square overflow-hidden border border-zinc-800 bg-zinc-900">
+            <div className="relative aspect-square overflow-hidden border bg-zinc-900" style={{ borderColor: `${primaryColor}33` }}>
               {imageUrl ? (
                 <Image
                   src={imageUrl}
@@ -93,35 +180,35 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
                   unoptimized
                 />
               ) : (
-                <div className="flex h-full items-center justify-center font-mono text-zinc-600">
+                <div className={`flex h-full items-center justify-center ${fontClass} text-zinc-600`}>
                   NO_VISUAL
                 </div>
               )}
-              {/* Dormant overlay */}
+              {/* Silent overlay */}
               {!isClaimed && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                  <span className="border border-zinc-600 bg-black/80 px-3 py-1 font-mono text-xs text-zinc-400">
-                    SIGNAL_OFFLINE
+                  <span className={`border bg-black/80 px-3 py-1 ${fontClass} text-xs text-zinc-400`} style={{ borderColor: `${primaryColor}44` }}>
+                    {wording.status_inactive.toUpperCase()}
                   </span>
                 </div>
               )}
             </div>
 
             {/* Status */}
-            <div className="mt-4 border border-zinc-800 bg-zinc-900/50 p-4">
-              <p className="font-mono text-xs text-zinc-600">STATUS</p>
+            <div className="mt-4 border bg-zinc-900/50 p-4" style={{ borderColor: `${primaryColor}33` }}>
+              <p className={`${fontClass} text-xs text-zinc-600`}>STATUS</p>
               {isClaimed ? (
-                <p className="mt-1 font-mono text-sm text-green-500">● ONLINE</p>
+                <p className={`mt-1 ${fontClass} text-sm`} style={{ color: primaryColor }}>● {wording.status_active.toUpperCase()}</p>
               ) : (
-                <p className="mt-1 font-mono text-sm text-zinc-500">○ DORMANT</p>
+                <p className={`mt-1 ${fontClass} text-sm text-zinc-500`}>○ {wording.status_inactive.toUpperCase()}</p>
               )}
             </div>
 
             {/* Owner (if claimed) */}
             {isClaimed && owner && (
-              <div className="mt-4 border border-zinc-800 bg-zinc-900/50 p-4">
-                <p className="font-mono text-xs text-zinc-600">OPERATOR</p>
-                <p className="mt-1 truncate font-mono text-sm text-zinc-400">
+              <div className="mt-4 border bg-zinc-900/50 p-4" style={{ borderColor: `${primaryColor}33` }}>
+                <p className={`${fontClass} text-xs text-zinc-600`}>{isChainRunners ? 'OPERATOR' : 'Owner'}</p>
+                <p className={`mt-1 truncate ${fontClass} text-sm text-zinc-400`}>
                   {owner.ens_name || owner.wallet_address}
                 </p>
               </div>
@@ -129,13 +216,14 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
 
             {/* Traits */}
             {traits.length > 0 && (
-              <div className="mt-4 border border-zinc-800 bg-zinc-900/50 p-4">
-                <p className="mb-2 font-mono text-xs text-zinc-600">ATTRIBUTES</p>
+              <div className="mt-4 border bg-zinc-900/50 p-4" style={{ borderColor: `${primaryColor}33` }}>
+                <p className={`mb-2 ${fontClass} text-xs text-zinc-600`}>{isChainRunners ? 'ATTRIBUTES' : 'Traits'}</p>
                 <div className="flex flex-wrap gap-2">
                   {traits.map((trait, i) => (
                     <span
                       key={i}
-                      className="border border-zinc-700 bg-zinc-800/50 px-2 py-1 font-mono text-xs text-zinc-400"
+                      className={`border px-2 py-1 ${fontClass} text-xs text-zinc-400`}
+                      style={{ borderColor: `${primaryColor}44`, backgroundColor: `${primaryColor}11` }}
                     >
                       {trait.trait_type}: {trait.value}
                     </span>
@@ -148,7 +236,7 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
           {/* Name, Bio & Signals */}
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <h1 className="font-mono text-3xl font-bold text-fuchsia-400">{name}</h1>
+              <h1 className={`${fontClass} text-3xl font-bold`} style={{ color: primaryColor }}>{name}</h1>
               {isClaimed && profile && (
                 <OwnerControls
                   profileId={profile.id}
@@ -157,23 +245,23 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
                 />
               )}
             </div>
-            <p className="mt-1 font-mono text-sm text-zinc-600">#{tokenId}</p>
+            <p className={`mt-1 ${fontClass} text-sm text-zinc-600`}>#{tokenId}</p>
 
             {isClaimed && profile?.bio && (
-              <p className="mt-4 font-mono text-sm text-zinc-400">{profile.bio}</p>
+              <p className={`mt-4 ${fontClass} text-sm text-zinc-400`}>{profile.bio}</p>
             )}
 
-            {/* Dormant State - Claim Button */}
-            {!isClaimed && (
-              <div className="mt-6 border border-zinc-800 bg-zinc-900/50 p-6">
-                <p className="font-mono text-sm text-zinc-400">
-                  // This runner is dormant. No signal detected.
+            {/* Silent State - Claim Button */}
+            {!isClaimed && contractAddress && (
+              <div className="mt-6 border bg-zinc-900/50 p-6" style={{ borderColor: `${primaryColor}33` }}>
+                <p className={`${fontClass} text-sm text-zinc-400`}>
+                  {isChainRunners ? '// This runner is silent. No signal detected.' : 'This character is inactive.'}
                 </p>
-                <p className="mt-2 font-mono text-xs text-zinc-600">
-                  &gt; Connect to activate this identity_
+                <p className={`mt-2 ${fontClass} text-xs text-zinc-600`}>
+                  {isChainRunners ? '> Connect to activate this identity_' : 'Connect your wallet to activate.'}
                 </p>
                 <div className="mt-4">
-                  <ClaimRunnerButton tokenId={tokenId} />
+                  <ClaimRunnerButton tokenId={tokenId} contractAddress={contractAddress} />
                 </div>
               </div>
             )}
@@ -182,8 +270,8 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
             {isClaimed && (
               <div className="mt-8">
                 <div className="mb-4 flex items-center justify-between">
-                  <p className="font-mono text-xs text-zinc-600">
-                    // SIGNAL_LOG [{signals.length}]
+                  <p className={`${fontClass} text-xs text-zinc-600`}>
+                    {isChainRunners ? `// SIGNAL_LOG [${signals.length}]` : `${wording.posts} (${signals.length})`}
                   </p>
                   {profile && (
                     <OwnerControls
@@ -211,12 +299,13 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
                       return (
                         <div
                           key={signal.id}
-                          className="border-l-2 border-zinc-800 bg-zinc-900/30 py-3 pl-4 pr-3"
+                          className="border-l-2 bg-zinc-900/30 py-3 pl-4 pr-3"
+                          style={{ borderColor: `${primaryColor}44` }}
                         >
-                          <p className="font-mono text-xs text-zinc-600">
+                          <p className={`${fontClass} text-xs text-zinc-600`}>
                             {dateStr} {timeStr}
                           </p>
-                          <p className="mt-1 font-mono text-sm text-zinc-300">
+                          <p className={`mt-1 ${fontClass} text-sm text-zinc-300`}>
                             {signal.content}
                           </p>
                         </div>
@@ -224,10 +313,12 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
                     })}
                   </div>
                 ) : (
-                  <div className="border border-dashed border-zinc-800 p-6 text-center">
-                    <p className="font-mono text-sm text-zinc-600">// NO_SIGNALS_YET</p>
-                    <p className="mt-1 font-mono text-xs text-zinc-700">
-                      &gt; Awaiting first transmission_
+                  <div className="border border-dashed p-6 text-center" style={{ borderColor: `${primaryColor}33` }}>
+                    <p className={`${fontClass} text-sm text-zinc-600`}>
+                      {isChainRunners ? '// NO_SIGNALS_YET' : `No ${wording.posts} yet`}
+                    </p>
+                    <p className={`mt-1 ${fontClass} text-xs text-zinc-700`}>
+                      {isChainRunners ? '> Awaiting first transmission_' : 'Waiting for first post...'}
                     </p>
                   </div>
                 )}

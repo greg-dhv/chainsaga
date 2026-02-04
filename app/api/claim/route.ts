@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyNftOwnership, getNftMetadata } from '@/lib/alchemy/nfts'
 import { getCollectionLore, getCollectionName, type CollectionLore } from '@/lib/collections/lore'
+import { generateFirstSignal } from '@/lib/ai/generateFirstSignal'
+import { normalizeTraits, getTraitValuesString, findTraitByType, type NormalizedTrait } from '@/lib/utils/traits'
 import type { Database } from '@/types/database'
 
 const supabase = createClient<Database>(
@@ -87,13 +89,13 @@ export async function POST(request: NextRequest) {
     const lore = getCollectionLore(contractAddress)
     const resolvedCollectionName = getCollectionName(contractAddress, collectionName)
 
-    // Ensure traits is an array
-    const safeTraits = Array.isArray(traits) ? traits : []
+    // Normalize traits to handle different collection formats
+    const normalizedTraits = normalizeTraits(traits)
 
     // Generate AI constitution with collection lore
-    const constitution = generateConstitution(name, safeTraits, lore)
+    const constitution = generateConstitution(name, normalizedTraits, lore)
     const systemPrompt = generateSystemPrompt(constitution, name, lore)
-    const bio = generateBio(constitution, name, lore, resolvedCollectionName, safeTraits)
+    const bio = generateBio(constitution, name, lore, resolvedCollectionName, normalizedTraits)
 
     // Create NFT profile
     const { data: profile, error: profileError } = await supabase
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
         owner_id: user.id,
         name: name || `NFT #${tokenId}`,
         image_url: imageUrl,
-        traits: safeTraits,
+        traits: normalizedTraits,
         ai_constitution: constitution,
         ai_system_prompt: systemPrompt,
         bio: bio,
@@ -118,6 +120,26 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create profile' },
         { status: 500 }
       )
+    }
+
+    // Generate first signal (post) for the newly activated runner
+    try {
+      const firstSignalContent = await generateFirstSignal(
+        name || `Runner #${tokenId}`,
+        constitution,
+        lore
+      )
+
+      await supabase
+        .from('posts')
+        .insert({
+          nft_profile_id: profile.id,
+          content: firstSignalContent,
+          mood_seed: 'first-transmission',
+        })
+    } catch (signalError) {
+      // Log but don't fail the claim if first signal fails
+      console.error('Error generating first signal:', signalError)
     }
 
     return NextResponse.json({
@@ -137,7 +159,7 @@ export async function POST(request: NextRequest) {
 
 function generateConstitution(
   name: string | null,
-  traits: Array<{ trait_type: string; value: string }>,
+  traits: NormalizedTrait[],
   lore: CollectionLore | null
 ) {
   // Map traits to personality aspects
@@ -158,19 +180,16 @@ function generateConstitution(
   }
 
   // Get race/type trait for collection-specific overrides
-  const raceTrait = traits.find(t =>
-    t.trait_type.toLowerCase() === 'race' ||
-    t.trait_type.toLowerCase() === 'type' ||
-    t.trait_type.toLowerCase() === 'species'
-  )
+  const raceTrait = findTraitByType(traits, 'race', 'type', 'species')
 
   // Check for collection-specific archetype override
   let role: string
   let tone: string[]
   let values: string[]
 
-  if (lore && raceTrait && lore.archetypeOverrides[raceTrait.value]) {
-    const override = lore.archetypeOverrides[raceTrait.value]
+  const raceValue = raceTrait?.value || ''
+  if (lore && raceValue && lore.archetypeOverrides[raceValue]) {
+    const override = lore.archetypeOverrides[raceValue]
     role = override.role
     tone = override.tone
     values = override.values
@@ -211,11 +230,11 @@ function generateConstitution(
 
 function determineArchetype(
   name: string | null,
-  traits: Array<{ trait_type: string; value: string }>,
+  traits: NormalizedTrait[],
   lore: CollectionLore | null
 ): string {
   const nameLower = (name || '').toLowerCase()
-  const traitValues = traits.map((t) => t.value.toLowerCase()).join(' ')
+  const traitValues = getTraitValuesString(traits)
   const combined = `${nameLower} ${traitValues}`
 
   // Collection-specific archetypes
@@ -328,7 +347,7 @@ function getValues(archetype: string): string[] {
 
 function generateSystemPrompt(
   constitution: ReturnType<typeof generateConstitution>,
-  name: string | null,
+  _name: string | null,
   lore: CollectionLore | null
 ): string {
   let worldContext = ''
@@ -368,17 +387,17 @@ You post daily thoughts, observations, and musings that reflect your unique pers
 
 function generateBio(
   constitution: ReturnType<typeof generateConstitution>,
-  name: string | null,
+  _name: string | null,
   lore: CollectionLore | null,
   collectionName: string,
-  traits: Array<{ trait_type: string; value: string }>
+  traits: NormalizedTrait[]
 ): string {
   const { identity, values, voice } = constitution
 
   // Extract key traits for personalization
-  const race = traits.find(t => t.trait_type.toLowerCase() === 'race')?.value
-  const mouth = traits.find(t => t.trait_type.toLowerCase() === 'mouth')?.value
-  const faceAccessory = traits.find(t => t.trait_type.toLowerCase() === 'face accessory')?.value
+  const race = findTraitByType(traits, 'race')?.value
+  const mouth = findTraitByType(traits, 'mouth')?.value
+  const faceAccessory = findTraitByType(traits, 'face accessory')?.value
 
   if (lore?.name === 'Chain Runners') {
     // Chain Runners specific bio generation
