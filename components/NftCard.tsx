@@ -38,7 +38,7 @@ export function NftCard({ nft, ownerAddress }: NftCardProps) {
 
       if (response.status === 409) {
         // Already claimed, redirect to runner profile
-        router.push(`/runner/${nft.tokenId}`)
+        router.push(`/profile/${nft.tokenId}`)
         return
       }
 
@@ -47,7 +47,7 @@ export function NftCard({ nft, ownerAddress }: NftCardProps) {
       }
 
       // Success - redirect to runner profile
-      router.push(`/runner/${nft.tokenId}`)
+      router.push(`/profile/${nft.tokenId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to claim')
       setClaiming(false)

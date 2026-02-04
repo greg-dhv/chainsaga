@@ -53,7 +53,7 @@ export function SignalFeed({ signals }: SignalFeedProps) {
             <div className="flex gap-3">
               {/* Avatar */}
               <Link
-                href={`/runner/${profile.token_id}`}
+                href={`/profile/${profile.token_id}`}
                 className="relative h-8 w-8 flex-shrink-0 overflow-hidden border border-zinc-700 bg-zinc-800 transition-all hover:border-fuchsia-500"
               >
                 {profile.image_url ? (
@@ -75,7 +75,7 @@ export function SignalFeed({ signals }: SignalFeedProps) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <Link
-                    href={`/runner/${profile.token_id}`}
+                    href={`/profile/${profile.token_id}`}
                     className="font-mono text-sm font-medium text-fuchsia-400 hover:text-fuchsia-300"
                   >
                     {profile.name}

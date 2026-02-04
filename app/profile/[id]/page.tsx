@@ -3,12 +3,16 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { getNftMetadata } from '@/lib/alchemy/nfts'
-import { ClaimRunnerButton } from '@/components/ClaimRunnerButton'
+import { ClaimButton } from '@/components/ClaimButton'
 import { OwnerControls } from '@/components/OwnerControls'
+import { UniverseTheme } from '@/components/UniverseTheme'
 
-interface RunnerPageProps {
+interface ProfilePageProps {
   params: Promise<{
     id: string
+  }>
+  searchParams: Promise<{
+    contract?: string
   }>
 }
 
@@ -16,12 +20,22 @@ interface Universe {
   slug: string
   name: string
   primary_color: string | null
+  secondary_color: string | null
+  accent_color: string | null
   font_style: string | null
+  font_family: string | null
+  google_font_url: string | null
+  background_image_url: string | null
   wording: {
     post: string
     posts: string
     status_active: string
     status_inactive: string
+    character?: string
+    characters?: string
+    activate_button?: string
+    inactive_title?: string
+    inactive_description?: string
   } | null
 }
 
@@ -36,8 +50,9 @@ interface Profile {
   users: { wallet_address: string; ens_name: string | null } | null
 }
 
-export default async function RunnerPage({ params }: RunnerPageProps) {
+export default async function ProfilePage({ params, searchParams }: ProfilePageProps) {
   const { id } = await params
+  const { contract: contractFromQuery } = await searchParams
   const supabase = await createClient()
 
   let profile: Profile | null = null
@@ -82,7 +97,7 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
   if (profile) {
     const { data: universeData } = await supabase
       .from('universes')
-      .select('slug, name, primary_color, font_style, wording')
+      .select('slug, name, primary_color, secondary_color, accent_color, font_style, font_family, google_font_url, background_image_url, wording')
       .eq('contract_address', profile.contract_address)
       .single()
 
@@ -100,28 +115,29 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
   }
 
   // If no profile found and it's a token ID, try to fetch from Alchemy
-  // We need to know which contract - for now, show 404 for unclaimed non-Chain-Runners
+  // Use contract from query param, or fall back to Chain Runners
   let alchemyData: { name: string; imageUrl: string; traits: Array<{ trait_type: string; value: string }>; contractAddress: string } | null = null
 
   if (!profile && !isUuid) {
-    // Try Chain Runners first (most common)
     const CHAIN_RUNNERS_CONTRACT = '0x97597002980134bea46250aa0510c9b90d87a587'
+    const targetContract = contractFromQuery || CHAIN_RUNNERS_CONTRACT
+
     try {
-      const nft = await getNftMetadata(CHAIN_RUNNERS_CONTRACT, id)
+      const nft = await getNftMetadata(targetContract, id)
       if (nft) {
         alchemyData = {
-          name: nft.name || `Runner #${id}`,
+          name: nft.name || `#${id}`,
           imageUrl: nft.image?.cachedUrl || nft.image?.originalUrl || '',
           traits: (nft.raw?.metadata?.attributes as Array<{ trait_type: string; value: string }>) || [],
-          contractAddress: CHAIN_RUNNERS_CONTRACT,
+          contractAddress: targetContract,
         }
-        // Get Chain Runners universe
-        const { data: crUniverse } = await supabase
+        // Get universe for this contract
+        const { data: contractUniverse } = await supabase
           .from('universes')
-          .select('slug, name, primary_color, font_style, wording')
-          .eq('contract_address', CHAIN_RUNNERS_CONTRACT)
+          .select('slug, name, primary_color, secondary_color, accent_color, font_style, font_family, google_font_url, background_image_url, wording')
+          .eq('contract_address', targetContract)
           .single()
-        universe = crUniverse as unknown as Universe
+        universe = contractUniverse as unknown as Universe
       }
     } catch {
       // NFT doesn't exist
@@ -143,12 +159,19 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
 
   // Get universe-specific styling
   const primaryColor = universe?.primary_color || '#d946ef'
-  const fontStyle = universe?.font_style || 'mono'
-  const wording = universe?.wording || {
-    post: 'signal',
-    posts: 'signals',
-    status_active: 'Transmitting',
-    status_inactive: 'Silent',
+  const secondaryColor = universe?.secondary_color || '#0a0a0a'
+  const accentColor = universe?.accent_color || '#d946ef'
+  const fontStyle = (universe?.font_style || 'mono') as 'mono' | 'sans' | 'serif'
+  const wording = {
+    post: universe?.wording?.post || 'post',
+    posts: universe?.wording?.posts || 'posts',
+    status_active: universe?.wording?.status_active || 'Online',
+    status_inactive: universe?.wording?.status_inactive || 'Offline',
+    character: universe?.wording?.character || 'character',
+    characters: universe?.wording?.characters || 'characters',
+    activate_button: universe?.wording?.activate_button || 'Activate',
+    inactive_title: universe?.wording?.inactive_title || 'This character is inactive',
+    inactive_description: universe?.wording?.inactive_description || 'Connect your wallet to activate',
   }
   const universeSlug = universe?.slug || 'chain-runners'
   const isChainRunners = universeSlug === 'chain-runners'
@@ -156,8 +179,17 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
   const fontClass = fontStyle === 'mono' ? 'font-mono' : fontStyle === 'serif' ? 'font-serif' : 'font-sans'
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <main className="mx-auto max-w-4xl px-4 py-8">
+    <UniverseTheme
+      primaryColor={primaryColor}
+      secondaryColor={secondaryColor}
+      accentColor={accentColor}
+      fontFamily={universe?.font_family}
+      googleFontUrl={universe?.google_font_url}
+      backgroundImageUrl={universe?.background_image_url}
+      fontStyle={fontStyle}
+    >
+      <div className="min-h-screen text-white">
+        <main className="mx-auto max-w-4xl px-4 py-8">
         {/* Back link */}
         <Link
           href={`/universe/${universeSlug}`}
@@ -255,13 +287,22 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
             {!isClaimed && contractAddress && (
               <div className="mt-6 border bg-zinc-900/50 p-6" style={{ borderColor: `${primaryColor}33` }}>
                 <p className={`${fontClass} text-sm text-zinc-400`}>
-                  {isChainRunners ? '// This runner is silent. No signal detected.' : 'This character is inactive.'}
+                  {isChainRunners ? '// This runner is silent. No signal detected.' : wording.inactive_title}
                 </p>
                 <p className={`mt-2 ${fontClass} text-xs text-zinc-600`}>
-                  {isChainRunners ? '> Connect to activate this identity_' : 'Connect your wallet to activate.'}
+                  {isChainRunners ? '> Connect to activate this identity_' : wording.inactive_description}
                 </p>
                 <div className="mt-4">
-                  <ClaimRunnerButton tokenId={tokenId} contractAddress={contractAddress} />
+                  <ClaimButton
+                    tokenId={tokenId}
+                    contractAddress={contractAddress}
+                    primaryColor={primaryColor}
+                    fontStyle={fontStyle as 'mono' | 'sans' | 'serif'}
+                    wording={{
+                      activate_button: wording.activate_button,
+                      character: wording.character,
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -326,7 +367,8 @@ export default async function RunnerPage({ params }: RunnerPageProps) {
             )}
           </div>
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </UniverseTheme>
   )
 }

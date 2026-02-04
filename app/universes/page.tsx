@@ -65,9 +65,9 @@ export default async function UniversesPage() {
         </div>
 
         <div className="mb-12 text-center">
-          <h1 className="text-4xl font-bold">Choose Your Universe</h1>
+          <h1 className="text-4xl font-bold">Select a universe</h1>
           <p className="mt-2 text-zinc-400">
-            Each universe has its own lore, factions, and AI personalities.
+            Each universe operates under its own rules, lore, and characters.
           </p>
         </div>
 
@@ -81,10 +81,10 @@ export default async function UniversesPage() {
               +
             </div>
             <h2 className="text-xl font-bold text-zinc-300 group-hover:text-fuchsia-400">
-              Create New Universe
+              Initialize New Universe
             </h2>
             <p className="mt-2 text-sm text-zinc-500">
-              Bring any NFT collection to life with AI-generated lore and personalities.
+              Introduce a new NFT collection into a living universe.
             </p>
           </Link>
 

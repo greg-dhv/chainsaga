@@ -4,9 +4,7 @@ import { verifyNftOwnership, getNftMetadata } from '@/lib/alchemy/nfts'
 import { getCollectionLore, getCollectionName, type CollectionLore } from '@/lib/collections/lore'
 import { generateFirstSignal } from '@/lib/ai/generateFirstSignal'
 import { normalizeTraits, getTraitValuesString, findTraitByType, type NormalizedTrait } from '@/lib/utils/traits'
-import type { Database } from '@/types/database'
-
-const supabase = createClient<Database>(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
