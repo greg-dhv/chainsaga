@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { ProfileSearch } from '@/components/ProfileSearch'
 import { UniverseTheme } from '@/components/UniverseTheme'
+import { PostFeed } from '@/components/PostFeed'
+import type { PostData } from '@/components/PostCard'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -39,19 +40,6 @@ interface Universe {
   is_active: boolean
 }
 
-interface Signal {
-  id: string
-  content: string
-  created_at: string
-  nft_profiles: {
-    id: string
-    name: string
-    image_url: string | null
-    contract_address: string
-    token_id: string
-  }
-}
-
 interface Profile {
   id: string
   name: string
@@ -78,11 +66,14 @@ export default async function UniversePage({ params }: PageProps) {
 
   const universe = universeData as unknown as Universe
 
-  // Fetch all posts from profiles in this universe
-  const { data: signalsData } = await supabase
+  // Fetch all posts from profiles in this universe (with reply info)
+  const { data: postsData } = await supabase
     .from('posts')
     .select(`
-      *,
+      id,
+      content,
+      created_at,
+      reply_to_post_id,
       nft_profiles!inner (
         id,
         name,
@@ -95,7 +86,45 @@ export default async function UniversePage({ params }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  const signals = (signalsData || []) as unknown as Signal[]
+  // Type for raw post data from Supabase
+  interface RawPostData {
+    id: string
+    content: string
+    created_at: string
+    reply_to_post_id: string | null
+    nft_profiles: {
+      id: string
+      name: string
+      image_url: string | null
+    }
+  }
+
+  const rawPosts = (postsData || []) as unknown as RawPostData[]
+
+  // Transform posts and fetch parent post info for replies
+  const posts: PostData[] = rawPosts.map((post) => {
+    // Find parent post if this is a reply
+    let parentPost = null
+    if (post.reply_to_post_id) {
+      const parent = rawPosts.find(p => p.id === post.reply_to_post_id)
+      if (parent) {
+        parentPost = {
+          id: parent.id,
+          content: parent.content,
+          nft_profiles: parent.nft_profiles,
+        }
+      }
+    }
+
+    return {
+      id: post.id,
+      content: post.content,
+      created_at: post.created_at,
+      reply_to_post_id: post.reply_to_post_id,
+      nft_profiles: post.nft_profiles,
+      parent_post: parentPost,
+    }
+  })
 
   // Fetch all claimed profiles for search
   const { data: profilesData } = await supabase
@@ -192,82 +221,15 @@ export default async function UniversePage({ params }: PageProps) {
               className="mb-4 text-xs"
               style={{ color: `${primaryColor}66` }}
             >
-              Recent {wording.posts} ({signals?.length || 0})
+              Recent {wording.posts} ({posts?.length || 0})
             </p>
 
-            {signals && signals.length > 0 ? (
-              <div className="space-y-4">
-                {signals.map((signal) => (
-                  <div
-                    key={signal.id}
-                    className="rounded-lg border p-4"
-                    style={{
-                      borderColor: `${primaryColor}22`,
-                      backgroundColor: `${primaryColor}08`,
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Profile Image */}
-                      <Link
-                        href={`/profile/${signal.nft_profiles.id}`}
-                        className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border"
-                        style={{ borderColor: `${primaryColor}44` }}
-                      >
-                        {signal.nft_profiles.image_url ? (
-                          <Image
-                            src={signal.nft_profiles.image_url}
-                            alt={signal.nft_profiles.name}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <div
-                            className="flex h-full w-full items-center justify-center text-xs"
-                            style={{ backgroundColor: `${primaryColor}22` }}
-                          >
-                            ?
-                          </div>
-                        )}
-                      </Link>
-
-                      <div className="flex-1">
-                        <Link
-                          href={`/profile/${signal.nft_profiles.id}`}
-                          className="text-sm font-medium hover:underline"
-                          style={{ color: primaryColor }}
-                        >
-                          {signal.nft_profiles.name}
-                        </Link>
-                        <p className="mt-1 text-sm text-zinc-300">
-                          {signal.content}
-                        </p>
-                        <p className="mt-2 text-xs text-zinc-600">
-                          {new Date(signal.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div
-                className="rounded-lg border p-8 text-center"
-                style={{ borderColor: `${primaryColor}22` }}
-              >
-                <p className="text-zinc-500">
-                  No {wording.posts} yet in this universe.
-                </p>
-                <p className="mt-2 text-sm text-zinc-600">
-                  Activate a {wording.character} to start posting.
-                </p>
-              </div>
-            )}
+            <PostFeed
+              posts={posts}
+              primaryColor={primaryColor}
+              emptyMessage={`No ${wording.posts} yet in this universe.`}
+              emptySubMessage={`Activate a ${wording.character} to start posting.`}
+            />
           </div>
         </main>
       </div>

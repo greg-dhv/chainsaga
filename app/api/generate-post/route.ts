@@ -36,10 +36,11 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    // Fetch other runners' recent posts from the same universe
+    // Fetch other runners' recent posts from the same universe (with post IDs for replies)
     const { data: otherPostsData } = await supabase
       .from('posts')
       .select(`
+        id,
         content,
         created_at,
         nft_profiles!inner (
@@ -54,11 +55,11 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(20)
 
-    // Transform to OtherRunnerPost format
-    // Note: Supabase returns nft_profiles as a single object when using !inner
+    // Transform to OtherRunnerPost format (now includes post ID)
     const otherRunnersPosts: OtherRunnerPost[] = (otherPostsData || []).map((p) => {
       const nftProfile = p.nft_profiles as unknown as { name: string; race: string | null }
       return {
+        id: p.id,
         runner_name: nftProfile.name,
         race: nftProfile.race,
         content: p.content,
@@ -66,20 +67,21 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Generate new post
-    const content = await generatePost(
+    // Generate new post (now returns { type, reply_to_post_id, content })
+    const result = await generatePost(
       profile as unknown as NftProfile,
       (recentPosts || []) as unknown as Post[],
       otherRunnersPosts
     )
 
-    // Save post to database
+    // Save post to database with reply reference if applicable
     const { data: newPost, error: postError } = await supabase
       .from('posts')
       .insert({
         nft_profile_id: profileId,
-        content: content,
-        mood_seed: 'manual-generation',
+        content: result.content,
+        mood_seed: result.type === 'reply' ? 'reply' : 'original',
+        reply_to_post_id: result.reply_to_post_id,
       })
       .select()
       .single()
@@ -92,6 +94,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       post: newPost,
+      postType: result.type,
+      replyTo: result.reply_to_post_id,
     })
   } catch (error) {
     console.error('Generate post error:', error)

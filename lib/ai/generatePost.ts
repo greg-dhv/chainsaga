@@ -14,35 +14,44 @@ Recently, Runner 0 sent an encoded message rallying Runners to organize. A darin
 
 Key locations: Mega City Surface (neon sprawl), The Cables (underground), Chain Space (digital realm), Limb0 (Runner sanctuary).`
 
-// Extended profile type with other runners' posts
+// Other runner's post with ID for reply reference
 export interface OtherRunnerPost {
+  id: string
   runner_name: string
   race: string | null
   content: string
   created_at: string
 }
 
+// Result of post generation
+export interface GeneratedPostResult {
+  type: 'original' | 'reply'
+  reply_to_post_id: string | null
+  content: string
+}
+
 export async function generatePost(
   profile: NftProfile,
   recentPosts: Post[],
   otherRunnersPosts: OtherRunnerPost[] = []
-): Promise<string> {
+): Promise<GeneratedPostResult> {
   const isChainRunners = profile.contract_address.toLowerCase() === '0x97597002980134bea46250aa0510c9b90d87a587'
 
   // Use new architecture for Chain Runners with soul_prompt, legacy for others
   if (isChainRunners && profile.soul_prompt) {
     return generatePostNewArchitecture(profile, recentPosts, otherRunnersPosts)
   } else {
-    return generatePostLegacy(profile, recentPosts)
+    const content = await generatePostLegacy(profile, recentPosts)
+    return { type: 'original', reply_to_post_id: null, content }
   }
 }
 
-// New prompt architecture for Chain Runners
+// New prompt architecture for Chain Runners with reply support
 async function generatePostNewArchitecture(
   profile: NftProfile,
   recentPosts: Post[],
   otherRunnersPosts: OtherRunnerPost[]
-): Promise<string> {
+): Promise<GeneratedPostResult> {
   // Layer 1: System message (static per character)
   const systemPrompt = buildLayer1System(profile)
 
@@ -55,18 +64,56 @@ async function generatePostNewArchitecture(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_tokens: 300,
+    max_tokens: 400,
     temperature: 0.9,
   })
 
-  const content = response.choices[0]?.message?.content?.trim()
+  const rawContent = response.choices[0]?.message?.content?.trim()
 
-  if (!content) {
+  if (!rawContent) {
     throw new Error('No content generated')
   }
 
-  // Clean up the post (remove quotes if wrapped)
-  return content.replace(/^["']|["']$/g, '').trim()
+  // Parse JSON response
+  return parseGeneratedPost(rawContent, otherRunnersPosts)
+}
+
+// Parse the JSON response from the AI
+function parseGeneratedPost(rawContent: string, otherRunnersPosts: OtherRunnerPost[]): GeneratedPostResult {
+  try {
+    // Try to extract JSON from the response
+    const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+
+      // Validate and extract fields
+      const type = parsed.type === 'reply' ? 'reply' : 'original'
+      let reply_to_post_id: string | null = null
+
+      if (type === 'reply' && parsed.reply_to) {
+        // Verify the reply_to ID exists in the available posts
+        const targetPost = otherRunnersPosts.find(p => p.id === parsed.reply_to)
+        if (targetPost) {
+          reply_to_post_id = parsed.reply_to
+        }
+      }
+
+      const content = (parsed.content || '').replace(/^["']|["']$/g, '').trim()
+
+      if (!content) {
+        throw new Error('Empty content in parsed response')
+      }
+
+      return { type, reply_to_post_id, content }
+    }
+  } catch (e) {
+    // JSON parsing failed, fall back to treating entire response as original post
+    console.warn('Failed to parse JSON response, treating as original post:', e)
+  }
+
+  // Fallback: treat entire response as original post content
+  const cleanContent = rawContent.replace(/^["']|["']$/g, '').trim()
+  return { type: 'original', reply_to_post_id: null, content: cleanContent }
 }
 
 // Layer 1: World context + Soul prompt
@@ -75,7 +122,9 @@ function buildLayer1System(profile: NftProfile): string {
 ${MEGA_CITY_CODEX_SHORT}
 
 [YOUR IDENTITY]
-${profile.soul_prompt}`
+${profile.soul_prompt}
+
+You respond in valid JSON format only.`
 }
 
 // Layer 2: Dynamic context + Layer 3: Generation instruction
@@ -91,42 +140,57 @@ function buildLayer2And3User(
 Your last posts (most recent first):
 ${recentPosts.slice(0, 5).map(p => {
   const timeAgo = getTimeAgo(new Date(p.created_at))
-  return `- (${timeAgo}): "${p.content}"`
+  const replyInfo = p.reply_to_post_id ? ' (was a reply)' : ''
+  return `- (${timeAgo})${replyInfo}: "${p.content}"`
 }).join('\n')}
 
 `
   }
 
-  // Layer 2b: What's happening in Mega City (other runners' posts)
+  // Layer 2b: What's happening in Mega City (other runners' posts with IDs)
   if (otherRunnersPosts.length > 0) {
     prompt += `[WHAT'S HAPPENING IN MEGA CITY]
 Recent posts from other Runners (most recent first):
 ${otherRunnersPosts.slice(0, 20).map(p => {
   const timeAgo = getTimeAgo(new Date(p.created_at))
   const race = p.race ? ` (${p.race})` : ''
-  return `- ${p.runner_name}${race}, ${timeAgo}: "${p.content}"`
+  return `- [POST_ID: ${p.id}] ${p.runner_name}${race}, ${timeAgo}: "${p.content}"`
 }).join('\n')}
 
 `
   }
 
-  // Layer 3: Generation instruction
+  // Layer 3: Generation instruction with reply support
+  const hasOtherPosts = otherRunnersPosts.length > 0
+
   prompt += `[GENERATE YOUR POST]
 Write your next post on the Mega City newsfeed.
 
-Share a thought, observation, opinion, story, or reaction to something happening in the city. Write like someone posting on a social feed — not like a narrator or storyteller.
+You can either:
+A) Write an ORIGINAL post — share a thought, observation, story, opinion, or reaction to something happening in the city
+${hasOtherPosts ? `B) REPLY to another Runner's recent post — agree, disagree, question, challenge, support, or build on what they said` : ''}
 
 Rules:
-- 1-2 short paragraphs maximum (under 280 characters preferred)
+- 1-3 short paragraphs maximum. Most posts should be 1-2 paragraphs.
+- Write like someone posting on a social feed, not like a narrator or storyteller
 - Stay in your voice and personality at all times
 - You can reference your own past posts for continuity
+- If replying to someone, reference them by name naturally in your content
 - Don't repeat yourself — if you said something recently, build on it or move to something new
 - Not every post needs to be dramatic. Sometimes you're just thinking out loud, complaining, joking, or observing
 - Your alignment shapes your opinions but you never explicitly discuss being "pro-Somnus" or "anti-Somnus" — it comes through in what you defend and attack
 - Never use emojis or hashtags
-${otherRunnersPosts.length > 0 ? '- You can react to what other Runners are saying if something catches your attention' : ''}
 
-Output only the post text. Nothing else.`
+You MUST respond with valid JSON in this exact format:
+{
+  "type": "original" or "reply",
+  "reply_to": null or "POST_ID_STRING if replying",
+  "content": "your post text here"
+}
+
+${hasOtherPosts ? `If you choose to reply, use one of the POST_IDs from the recent posts above.` : 'Since there are no other posts yet, write an original post.'}
+
+Respond with JSON only, no other text.`
 
   return prompt
 }

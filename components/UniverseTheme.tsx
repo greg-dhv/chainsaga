@@ -63,7 +63,7 @@ export function UniverseTheme({
           className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center bg-no-repeat"
           style={{
             backgroundImage: `url(${backgroundImageUrl})`,
-            opacity: 0.15,
+            opacity: 0.2,
             mixBlendMode: 'luminosity',
           }}
           aria-hidden="true"

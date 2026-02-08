@@ -57,7 +57,14 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
 
   let profile: Profile | null = null
   let universe: Universe | null = null
-  let signals: Array<{ id: string; content: string; created_at: string }> = []
+  let signals: Array<{
+    id: string
+    content: string
+    created_at: string
+    reply_to_post_id: string | null
+    parent_author_name?: string
+    parent_author_id?: string
+  }> = []
 
   // Check if ID is a UUID (profile ID) or a token ID
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -103,15 +110,53 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
 
     universe = universeData as unknown as Universe
 
-    // Fetch signals
+    // Fetch signals with reply info
     const { data: signalsData } = await supabase
       .from('posts')
-      .select('id, content, created_at')
+      .select('id, content, created_at, reply_to_post_id')
       .eq('nft_profile_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(50)
 
-    signals = signalsData || []
+    interface RawSignal {
+      id: string
+      content: string
+      created_at: string
+      reply_to_post_id: string | null
+    }
+
+    const rawSignals = (signalsData || []) as unknown as RawSignal[]
+
+    // Get parent post info for replies
+    const signalsWithParents = await Promise.all(
+      rawSignals.map(async (signal) => {
+        if (signal.reply_to_post_id) {
+          const { data: parentPost } = await supabase
+            .from('posts')
+            .select(`
+              id,
+              nft_profiles (
+                id,
+                name
+              )
+            `)
+            .eq('id', signal.reply_to_post_id)
+            .single()
+
+          if (parentPost) {
+            const parentProfile = (parentPost as unknown as { nft_profiles: { id: string; name: string } }).nft_profiles
+            return {
+              ...signal,
+              parent_author_name: parentProfile?.name,
+              parent_author_id: parentProfile?.id,
+            }
+          }
+        }
+        return signal
+      })
+    )
+
+    signals = signalsWithParents
   }
 
   // If no profile found and it's a token ID, try to fetch from Alchemy
@@ -346,6 +391,22 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
                           <p className={`${fontClass} text-xs text-zinc-600`}>
                             {dateStr} {timeStr}
                           </p>
+                          {/* Reply indicator */}
+                          {signal.reply_to_post_id && signal.parent_author_name && (
+                            <div className="mt-1 flex items-center gap-1 text-xs text-zinc-500">
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                              <span>{isChainRunners ? 'REPLY_TO:' : 'Replying to'}</span>
+                              <Link
+                                href={`/profile/${signal.parent_author_id}`}
+                                className="hover:underline"
+                                style={{ color: primaryColor }}
+                              >
+                                {signal.parent_author_name}
+                              </Link>
+                            </div>
+                          )}
                           <p className={`mt-1 ${fontClass} text-sm text-zinc-300`}>
                             {signal.content}
                           </p>

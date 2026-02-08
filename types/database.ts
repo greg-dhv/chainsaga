@@ -89,6 +89,7 @@ export interface Database {
           content: string
           mood_seed: string | null
           created_at: string
+          reply_to_post_id: string | null
         }
         Insert: {
           id?: string
@@ -96,6 +97,7 @@ export interface Database {
           content: string
           mood_seed?: string | null
           created_at?: string
+          reply_to_post_id?: string | null
         }
         Update: {
           id?: string
@@ -103,6 +105,7 @@ export interface Database {
           content?: string
           mood_seed?: string | null
           created_at?: string
+          reply_to_post_id?: string | null
         }
       }
     }
