@@ -144,7 +144,7 @@ export function PostCard({
           </p>
 
           {/* Actions: Reply count */}
-          {replyCount > 0 && !isReply && (
+          {replyCount > 0 && (
             <button
               onClick={() => {
                 setShowReplies(!showReplies)
