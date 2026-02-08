@@ -101,30 +101,14 @@ export default async function UniversePage({ params }: PageProps) {
 
   const rawPosts = (postsData || []) as unknown as RawPostData[]
 
-  // Transform posts and fetch parent post info for replies
-  const posts: PostData[] = rawPosts.map((post) => {
-    // Find parent post if this is a reply
-    let parentPost = null
-    if (post.reply_to_post_id) {
-      const parent = rawPosts.find(p => p.id === post.reply_to_post_id)
-      if (parent) {
-        parentPost = {
-          id: parent.id,
-          content: parent.content,
-          nft_profiles: parent.nft_profiles,
-        }
-      }
-    }
-
-    return {
-      id: post.id,
-      content: post.content,
-      created_at: post.created_at,
-      reply_to_post_id: post.reply_to_post_id,
-      nft_profiles: post.nft_profiles,
-      parent_post: parentPost,
-    }
-  })
+  // Transform posts for feed (PostFeed handles reply filtering and counts)
+  const posts: PostData[] = rawPosts.map((post) => ({
+    id: post.id,
+    content: post.content,
+    created_at: post.created_at,
+    reply_to_post_id: post.reply_to_post_id,
+    nft_profiles: post.nft_profiles,
+  }))
 
   // Fetch all claimed profiles for search
   const { data: profilesData } = await supabase

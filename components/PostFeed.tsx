@@ -15,26 +15,49 @@ export function PostFeed({
   emptyMessage = 'No posts yet.',
   emptySubMessage = 'Be the first to post!',
 }: PostFeedProps) {
-  // Calculate reply counts for each post
-  const postsWithReplyCounts = posts.map(post => ({
-    ...post,
-    reply_count: posts.filter(p => p.reply_to_post_id === post.id).length,
-  }))
+  // Separate root posts from replies
+  const rootPosts = posts.filter(post => !post.reply_to_post_id)
+  const replies = posts.filter(post => post.reply_to_post_id)
 
-  // Filter to show only root posts (not replies) in the main feed
-  // Replies will be shown nested under their parent posts
-  const rootPosts = postsWithReplyCounts.filter(post => !post.reply_to_post_id)
+  // Calculate reply counts and latest activity for each root post
+  const rootPostsWithMetadata = rootPosts.map(post => {
+    // For nested replies, we need to recursively find replies to replies
+    const allReplyIds = new Set<string>([post.id])
+    let newIds = [post.id]
 
-  // For replies that reference posts not in the current feed, show them as standalone with context
-  const orphanReplies = postsWithReplyCounts.filter(
-    post => post.reply_to_post_id && !posts.some(p => p.id === post.reply_to_post_id)
+    while (newIds.length > 0) {
+      const nextLevel = replies.filter(r =>
+        r.reply_to_post_id && newIds.includes(r.reply_to_post_id)
+      )
+      newIds = nextLevel.map(r => r.id)
+      newIds.forEach(id => allReplyIds.add(id))
+    }
+
+    // All replies in this thread (excluding the root post itself)
+    const threadReplies = replies.filter(r => allReplyIds.has(r.reply_to_post_id!))
+    const replyCount = threadReplies.length
+
+    // Find latest activity (most recent reply or the post itself)
+    let latestActivity = post.created_at
+    threadReplies.forEach(reply => {
+      if (new Date(reply.created_at) > new Date(latestActivity)) {
+        latestActivity = reply.created_at
+      }
+    })
+
+    return {
+      ...post,
+      reply_count: replyCount,
+      latest_activity: latestActivity,
+    }
+  })
+
+  // Sort by latest activity (most recent first)
+  const sortedPosts = rootPostsWithMetadata.sort(
+    (a, b) => new Date(b.latest_activity).getTime() - new Date(a.latest_activity).getTime()
   )
 
-  const displayPosts = [...rootPosts, ...orphanReplies].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )
-
-  if (displayPosts.length === 0) {
+  if (sortedPosts.length === 0) {
     return (
       <div
         className="rounded-lg border p-8 text-center"
@@ -48,12 +71,11 @@ export function PostFeed({
 
   return (
     <div className="space-y-4">
-      {displayPosts.map((post) => (
+      {sortedPosts.map((post) => (
         <PostCard
           key={post.id}
           post={post}
           primaryColor={primaryColor}
-          allPosts={postsWithReplyCounts}
         />
       ))}
     </div>
