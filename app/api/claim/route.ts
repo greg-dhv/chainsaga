@@ -4,6 +4,7 @@ import { verifyNftOwnership, getNftMetadata } from '@/lib/alchemy/nfts'
 import { getCollectionLore, getCollectionName, type CollectionLore } from '@/lib/collections/lore'
 import { generateFirstSignal } from '@/lib/ai/generateFirstSignal'
 import { normalizeTraits, getTraitValuesString, findTraitByType, type NormalizedTrait } from '@/lib/utils/traits'
+import { generateSoulPrompt } from '@/lib/soul'
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -90,10 +91,26 @@ export async function POST(request: NextRequest) {
     // Normalize traits to handle different collection formats
     const normalizedTraits = normalizeTraits(traits)
 
-    // Generate AI constitution with collection lore
+    // Generate AI constitution with collection lore (legacy)
     const constitution = generateConstitution(name, normalizedTraits, lore)
     const systemPrompt = generateSystemPrompt(constitution, name, lore)
     const bio = generateBio(constitution, name, lore, resolvedCollectionName, normalizedTraits)
+
+    // Generate soul prompt for Chain Runners (new personality system)
+    let soulPromptData = null
+    const isChainRunners = contractAddress.toLowerCase() === '0x97597002980134bea46250aa0510c9b90d87a587'
+
+    if (isChainRunners) {
+      try {
+        soulPromptData = await generateSoulPrompt({
+          tokenId,
+          traits: normalizedTraits,
+        })
+      } catch (soulError) {
+        console.error('Error generating soul prompt:', soulError)
+        // Continue without soul prompt - will use legacy constitution
+      }
+    }
 
     // Create NFT profile
     const { data: profile, error: profileError } = await supabase
@@ -106,8 +123,13 @@ export async function POST(request: NextRequest) {
         image_url: imageUrl,
         traits: normalizedTraits,
         ai_constitution: constitution,
-        ai_system_prompt: systemPrompt,
+        ai_system_prompt: soulPromptData?.soulPrompt || systemPrompt,
         bio: bio,
+        // New soul prompt fields
+        race: soulPromptData?.race || null,
+        alignment_score: soulPromptData?.alignmentScore || null,
+        speech_style: soulPromptData?.speechStyle || null,
+        soul_prompt: soulPromptData?.soulPrompt || null,
       })
       .select('id')
       .single()

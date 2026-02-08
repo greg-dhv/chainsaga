@@ -30,8 +30,13 @@ export async function generatePost(
   // Random mood seed for variety
   const moodSeed = MOOD_SEEDS[Math.floor(Math.random() * MOOD_SEEDS.length)]
 
-  // Build the system prompt with fresh universe context
-  const systemPrompt = buildSystemPrompt(profile, constitution, lore)
+  // Use soul_prompt if available (new system), otherwise fall back to legacy constitution
+  let systemPrompt: string
+  if (profile.soul_prompt) {
+    systemPrompt = buildSoulPromptSystem(profile, lore)
+  } else {
+    systemPrompt = buildSystemPrompt(profile, constitution, lore)
+  }
 
   // Build the user prompt with recent posts and mood
   const userPrompt = buildUserPrompt(recentPosts, moodSeed)
@@ -54,6 +59,30 @@ export async function generatePost(
 
   // Clean up the post (remove quotes if wrapped)
   return content.replace(/^["']|["']$/g, '').trim()
+}
+
+// New soul prompt based system
+function buildSoulPromptSystem(
+  profile: NftProfile,
+  lore: ReturnType<typeof getCollectionLore>
+): string {
+  let prompt = profile.soul_prompt || ''
+
+  // Add Mega City Codex context for Chain Runners
+  if (lore?.name === 'Chain Runners') {
+    prompt += `
+
+MEGA CITY CONTEXT:
+${lore.world}
+
+KEY LOCATIONS: Mega City Surface, The Cables (underground), Chain Space (digital realm), Limb0 (Runner sanctuary)
+
+VOCABULARY: ${lore.vocabulary.join(', ')}
+
+Remember: You live in Mega City. Reference it naturally. Your posts should feel like someone sharing thoughts on a social feed.`
+  }
+
+  return prompt
 }
 
 function buildSystemPrompt(

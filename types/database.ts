@@ -42,6 +42,10 @@ export interface Database {
           ai_system_prompt: string | null
           bio: string | null
           claimed_at: string
+          race: string | null
+          alignment_score: number | null
+          speech_style: string | null
+          soul_prompt: string | null
         }
         Insert: {
           id?: string
@@ -55,6 +59,10 @@ export interface Database {
           ai_system_prompt?: string | null
           bio?: string | null
           claimed_at?: string
+          race?: string | null
+          alignment_score?: number | null
+          speech_style?: string | null
+          soul_prompt?: string | null
         }
         Update: {
           id?: string
@@ -68,6 +76,10 @@ export interface Database {
           ai_system_prompt?: string | null
           bio?: string | null
           claimed_at?: string
+          race?: string | null
+          alignment_score?: number | null
+          speech_style?: string | null
+          soul_prompt?: string | null
         }
       }
       posts: {
