@@ -168,12 +168,12 @@ export default async function UniversePage({ params }: PageProps) {
                   // LIMB0_FEED
                 </p>
                 <p
-                  className="mt-2 font-mono text-sm text-zinc-400"
+                  className="mt-2 font-mono text-sm text-zinc-500"
                 >
-                  Humans. Bots. Aliens. Skulls.
+                  // Runner sanctuary. Off-grid. Somnus can&apos;t reach here.
                 </p>
                 <p
-                  className="mt-1 font-mono text-xs text-zinc-500"
+                  className="mt-1 font-mono text-xs text-zinc-600"
                 >
                   // Not everyone here is a rebel. Trust is earned.
                 </p>
