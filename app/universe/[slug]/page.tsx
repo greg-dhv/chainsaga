@@ -159,18 +159,41 @@ export default async function UniversePage({ params }: PageProps) {
               ← Back to Universes
             </Link>
 
-            <h1
-              className="mt-4 text-4xl font-bold"
-              style={{ color: primaryColor }}
-            >
-              {universe.name}
-            </h1>
-            <p
-              className="mt-2 text-sm"
-              style={{ color: `${primaryColor}88` }}
-            >
-              {universe.description}
-            </p>
+            {slug === 'chain-runners' ? (
+              <>
+                <p
+                  className="mt-4 font-mono text-lg"
+                  style={{ color: primaryColor }}
+                >
+                  // LIMB0_FEED
+                </p>
+                <p
+                  className="mt-2 font-mono text-sm text-zinc-400"
+                >
+                  Humans. Bots. Aliens. Skulls.
+                </p>
+                <p
+                  className="mt-1 font-mono text-xs text-zinc-500"
+                >
+                  // Not everyone here is a rebel. Trust is earned.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1
+                  className="mt-4 text-4xl font-bold"
+                  style={{ color: primaryColor }}
+                >
+                  {universe.name}
+                </h1>
+                <p
+                  className="mt-2 text-sm"
+                  style={{ color: `${primaryColor}88` }}
+                >
+                  {universe.description}
+                </p>
+              </>
+            )}
 
             <Link
               href={`/universe/${slug}/lore`}
@@ -180,7 +203,7 @@ export default async function UniversePage({ params }: PageProps) {
                 color: primaryColor,
               }}
             >
-              Explore Lore
+              {slug === 'chain-runners' ? '> EXPLORE_CODEX' : 'Explore Lore'}
             </Link>
           </div>
 
