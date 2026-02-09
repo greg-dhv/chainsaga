@@ -144,10 +144,22 @@ export async function POST(request: NextRequest) {
 
     // Generate first signal (post) for the newly activated runner
     try {
+      // Build profile object for first signal generation
+      const profileForSignal = {
+        id: profile.id,
+        contract_address: contractAddress.toLowerCase(),
+        token_id: tokenId,
+        name: name || `Runner #${tokenId}`,
+        image_url: imageUrl,
+        traits: normalizedTraits,
+        soul_prompt: soulPromptData?.soulPrompt || null,
+        race: soulPromptData?.race || null,
+        alignment_score: soulPromptData?.alignmentScore || null,
+        speech_style: soulPromptData?.speechStyle || null,
+      }
+
       const firstSignalContent = await generateFirstSignal(
-        name || `Runner #${tokenId}`,
-        constitution,
-        lore
+        profileForSignal as unknown as import('@/types/database').NftProfile
       )
 
       await supabase
