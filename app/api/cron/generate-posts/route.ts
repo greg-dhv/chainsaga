@@ -24,11 +24,15 @@ export async function GET(request: NextRequest) {
   const runs = simulateDay ? 8 : 1 // Simulate 8 cron runs for a full day
   // Verify cron secret (Vercel sends this header)
   const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    // Also allow in development without secret
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const secretParam = searchParams.get('secret')
+
+  const isAuthorized =
+    authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+    secretParam === process.env.CRON_SECRET ||
+    process.env.NODE_ENV !== 'production'
+
+  if (!isAuthorized) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
