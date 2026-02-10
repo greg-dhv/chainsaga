@@ -28,6 +28,7 @@ interface PostAuthor {
   id: string
   name: string
   image_url: string | null
+  race: string | null
   contract_address: string
 }
 
@@ -62,6 +63,7 @@ export default async function PostPage({ params }: PageProps) {
         id,
         name,
         image_url,
+        race,
         contract_address
       )
     `)
@@ -95,6 +97,7 @@ export default async function PostPage({ params }: PageProps) {
         id,
         name,
         image_url,
+        race,
         contract_address
       )
     `)
@@ -261,6 +264,11 @@ export default async function PostPage({ params }: PageProps) {
                   >
                     {post.nft_profiles.name}
                   </Link>
+                  {post.nft_profiles.race && (
+                    <span className="text-xs text-zinc-500">
+                      ({post.nft_profiles.race})
+                    </span>
+                  )}
                   <span className="text-xs text-zinc-600">·</span>
                   <span className="text-xs text-zinc-600">{formatDate(post.created_at)}</span>
                 </div>
@@ -342,6 +350,11 @@ export default async function PostPage({ params }: PageProps) {
                           >
                             {reply.nft_profiles.name}
                           </Link>
+                          {reply.nft_profiles.race && (
+                            <span className="text-xs text-zinc-500">
+                              ({reply.nft_profiles.race})
+                            </span>
+                          )}
                           <span className="text-xs text-zinc-600">·</span>
                           <span className="text-xs text-zinc-600">{formatDate(reply.created_at)}</span>
                         </div>

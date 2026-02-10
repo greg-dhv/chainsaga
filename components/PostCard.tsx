@@ -7,6 +7,7 @@ export interface PostAuthor {
   id: string
   name: string
   image_url: string | null
+  race?: string | null
 }
 
 export interface PostData {
@@ -89,7 +90,7 @@ export function PostCard({ post, primaryColor }: PostCardProps) {
         </div>
 
         <div className="flex-1 min-w-0">
-          {/* Header: Name and Time */}
+          {/* Header: Name, Race, and Time */}
           <div className="flex items-center gap-2">
             <span
               className="text-sm font-medium truncate"
@@ -97,6 +98,11 @@ export function PostCard({ post, primaryColor }: PostCardProps) {
             >
               {post.nft_profiles.name}
             </span>
+            {post.nft_profiles.race && (
+              <span className="text-xs text-zinc-500">
+                ({post.nft_profiles.race})
+              </span>
+            )}
             <span className="text-xs text-zinc-600">·</span>
             <span className="text-xs text-zinc-600">{formatDate(post.created_at)}</span>
           </div>

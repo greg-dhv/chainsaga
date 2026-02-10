@@ -46,6 +46,7 @@ interface Profile {
   name: string
   image_url: string | null
   bio: string | null
+  race: string | null
   traits: Array<{ trait_type: string; value: string }>
   users: { wallet_address: string; ens_name: string | null } | null
 }
@@ -201,6 +202,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const owner = profile?.users
   const tokenId = profile?.token_id || id
   const contractAddress = profile?.contract_address || alchemyData?.contractAddress
+  const race = profile?.race || null
 
   // Get universe-specific styling
   const primaryColor = universe?.primary_color || '#d946ef'
@@ -314,6 +316,9 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className={`${fontClass} text-3xl font-bold`} style={{ color: primaryColor }}>{name}</h1>
+              {race && (
+                <span className={`${fontClass} text-lg text-zinc-500`}>({race})</span>
+              )}
               {isClaimed && profile && (
                 <OwnerControls
                   profileId={profile.id}

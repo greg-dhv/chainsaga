@@ -78,6 +78,7 @@ export default async function UniversePage({ params }: PageProps) {
         id,
         name,
         image_url,
+        race,
         contract_address,
         token_id
       )
@@ -96,6 +97,7 @@ export default async function UniversePage({ params }: PageProps) {
       id: string
       name: string
       image_url: string | null
+      race: string | null
     }
   }
 
