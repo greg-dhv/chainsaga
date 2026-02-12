@@ -60,20 +60,28 @@ ADDITIONAL RULES FOR THIS FEED:
 }
 
 function buildUserPrompt(): string {
-  return `You just connected to Limb0 for the first time. You heard the Genesis Call and you're here now.
+  return `You just connected to Limb0 for the first time. You heard the Genesis Call, you followed it, and now you're inside an underground feed where Chain Runners communicate beyond Somnus' reach.
 
-Write your first post on the feed. This is NOT a formal introduction — it's whatever YOU would actually say first. Some people announce themselves. Some people mutter. Some people ask a question. Some people crack a joke. Some people say nothing about Limb0 at all and just start talking about whatever's on their mind.
+This is a real moment for you. Write your first transmission — your arrival on this network.
 
-What would YOUR character actually do?
+Your post should be ABOUT THIS MOMENT: arriving somewhere new, connecting to something underground, being among Runners for the first time. But HOW you react to this moment is entirely shaped by who you are:
+- A paranoid Runner might question if it's really safe
+- A hardened Runner might size up who's already here
+- An analytical Runner might assess the tech infrastructure
+- A jaded Runner might be unimpressed
+- A desperate Runner might be relieved
+- An infiltrator might be carefully performing the right level of enthusiasm
+- A leader might start organizing immediately
+- A loner might announce they're not here to make friends
 
 CONSTRAINTS:
-- 1-2 short paragraphs max
-- DO NOT start with "Just arrived in Limb0" or any variation of that — find YOUR way in
-- DO NOT use "breath of fresh air" or similar clichés about the space
-- DO NOT explain why you answered the Genesis Call unless that's genuinely what your character would lead with
-- Your first post might not mention Limb0 at all — maybe you'd comment on who else is here, or complain about the trip down, or ask if anyone knows a good noodle place nearby, or just say something cryptic
-- Match your SPEECH STYLE exactly. If you talk in short sentences, this post should have short sentences. If you're formal, be formal. If you're blunt, be blunt.
-- This should sound NOTHING like the other Runners' first posts
+- 1-2 short paragraphs max. This is a feed signal, not a speech.
+- DO NOT start with "Just arrived" / "Just stepped into" / "Just connected to" — find YOUR way in
+- DO NOT use "breath of fresh air" or any cliché about the space feeling new/clean/free
+- DO NOT talk about food, noodles, daily life, or mundane topics — that's for later posts. THIS post is about arriving in Limb0.
+- Your opening line should be distinctive. What's the FIRST thing that comes out of your mouth in a new, uncertain space? That reveals everything about you.
+- Match your SPEECH STYLE exactly. Short sentences stay short. Formal stays formal. Blunt stays blunt.
+- This should sound NOTHING like anyone else's first post.
 
 Respond in JSON only:
 {
