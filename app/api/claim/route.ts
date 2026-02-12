@@ -124,12 +124,13 @@ export async function POST(request: NextRequest) {
         traits: normalizedTraits,
         ai_constitution: constitution,
         ai_system_prompt: soulPromptData?.soulPrompt || systemPrompt,
-        bio: bio,
+        bio: soulPromptData?.bio || bio,
         // New soul prompt fields
         race: soulPromptData?.race || null,
         alignment_score: soulPromptData?.alignmentScore || null,
         speech_style: soulPromptData?.speechStyle || null,
         soul_prompt: soulPromptData?.soulPrompt || null,
+        feed_behavior: soulPromptData?.feedBehavior || null,
       })
       .select('id')
       .single()

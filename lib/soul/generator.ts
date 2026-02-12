@@ -4,14 +4,24 @@ import {
   findMatchingTraits,
   calculateAlignmentScore,
   getAlignmentInterpretation,
-  type TraitMapping
+  getMundaneDetails,
+  type TraitMapping,
+  type AlignmentResult
 } from './trait-mappings'
+import {
+  selectLocationAnchors,
+  formatLocationsForPrompt,
+  type Location
+} from './locations'
 
 export interface SoulPromptResult {
   race: string
   alignmentScore: number
   speechStyle: string
+  feedBehavior: string
+  bio: string
   soulPrompt: string
+  isInfiltrator: boolean
 }
 
 export interface GenerateSoulPromptInput {
@@ -24,107 +34,196 @@ export async function generateSoulPrompt(
 ): Promise<SoulPromptResult> {
   const { tokenId, traits } = input
 
-  // 1. Detect race from traits
+  // Step 1: Detect race from traits
   const race = detectRace(traits)
   const raceData = getRaceData(race)
 
-  // 2. Find matching trait mappings
+  // Step 2: Find matching trait mappings (per-value, not per-category)
   const matchedTraits = findMatchingTraits(traits)
 
-  // 3. Calculate alignment score
+  // Step 3: Calculate alignment score
   const alignmentScore = calculateAlignmentScore(raceData.alignmentBase, matchedTraits)
-  const alignmentInterpretation = getAlignmentInterpretation(alignmentScore)
+  const alignmentResult = getAlignmentInterpretation(alignmentScore)
 
-  // 4. Generate personality and speech style using AI
-  const { personality, speechStyle } = await generatePersonalityAndSpeech(
+  // Step 4: Select mundane anchors (1-2 details)
+  const mundaneDetails = getMundaneDetails(matchedTraits)
+
+  // Step 5: Select location anchors
+  const { frequentLocations, awarenessLocations } = selectLocationAnchors(2, 4)
+
+  // Step 6: Generate personality, speech style, and feed behavior using AI
+  const { personality, speechStyle, feedBehavior } = await generatePersonalityAndSpeech(
+    tokenId,
     raceData,
     matchedTraits,
-    alignmentScore
+    alignmentScore,
+    alignmentResult,
+    mundaneDetails,
+    frequentLocations,
+    awarenessLocations
   )
 
-  // 5. Assemble the full soul prompt
+  // Get dominant trait for bio generation
+  const dominantTrait = matchedTraits.length > 0
+    ? matchedTraits[0].category
+    : raceData.personalityTendencies.split('.')[0]
+
+  // Step 7: Generate bio
+  const bio = await generateBio(tokenId, raceData, personality, speechStyle, alignmentResult, dominantTrait)
+
+  // Step 8: Assemble the full soul prompt
   const soulPrompt = assembleSoulPrompt({
     tokenId,
     race,
     raceData,
     personality,
     alignmentScore,
-    alignmentInterpretation,
+    alignmentResult,
     speechStyle,
+    feedBehavior,
+    frequentLocations,
+    awarenessLocations,
   })
 
   return {
     race,
     alignmentScore,
     speechStyle,
+    feedBehavior,
+    bio,
     soulPrompt,
+    isInfiltrator: alignmentResult.isInfiltrator,
   }
 }
 
 async function generatePersonalityAndSpeech(
+  tokenId: string,
   raceData: RaceData,
   matchedTraits: TraitMapping[],
-  alignmentScore: number
-): Promise<{ personality: string; speechStyle: string }> {
-  // Collect all personality and speech dimensions
-  const personalityDimensions = [
-    raceData.personalityTendencies,
-    ...matchedTraits.map(t => t.personalityDimension)
-  ]
+  alignmentScore: number,
+  alignmentResult: AlignmentResult,
+  mundaneDetails: string[],
+  frequentLocations: Location[],
+  awarenessLocations: Location[]
+): Promise<{ personality: string; speechStyle: string; feedBehavior: string }> {
 
-  const speechDimensions = [
-    raceData.speechStyleBase,
-    ...matchedTraits.map(t => t.speechDimension).filter(s => s && s !== 'No speech modification.')
-  ]
+  const systemMessage = `You are writing a character for a social feed set in Mega City — a neon-lit super-metropolis controlled by an AI called Somnus. This character posts alongside hundreds of others. They need to feel like a real person with a real life — not a character sheet, not a cyberpunk cliché, not a philosophy student.
 
-  const prompt = `You are creating a unique character personality for an NFT in a cyberpunk world called Mega City.
+STRICT RULES:
+- No monologues about "the nature of trust" or "what it means to be free"
+- No shadow/neon/darkness metaphors (these are BANNED — find fresh language)
+- No generic rebellion rhetoric ("tear down the system," "fight for freedom")
+- Characters have mundane concerns: food, sleep, boredom, petty grudges, hobbies, weather, neighbors
+- Not every thought needs to be profound. Most social media posts aren't.
+- A character's politics should leak through their daily life, not dominate it
+- Write a PERSON, not a POSITION`
+
+  const infiltratorWarning = alignmentScore > 10
+    ? `\nIMPORTANT: This character is operating in Limb0, a Runner sanctuary. They cannot openly support Somnus. Their pro-Somnus tendency must manifest as: questioning radical actions as 'impractical,' defending 'stability' in abstract terms, steering conversations toward internal Runner conflicts, or being suspiciously well-connected. They are PERFORMING as a Runner — convincingly.`
+    : ''
+
+  const userMessage = `Create a character personality for Runner #${tokenId} in Mega City.
 
 RACE: ${raceData.name}
+RACE CONTEXT: ${raceData.backstoryHook}
 RACE PERSONALITY BASE: ${raceData.personalityTendencies}
-RACE CULTURAL CONTEXT: ${raceData.culturalTensions}
+CULTURAL TENSIONS: ${raceData.culturalTensions}
 
-TRAIT PERSONALITY DIMENSIONS (combine these into a unique individual):
-${matchedTraits.map(t => `- ${t.category}: ${t.personalityDimension}`).join('\n') || '- No special traits detected'}
+VISUAL TRAIT SIGNALS (these shaped who they became — synthesize, don't list):
+${matchedTraits.map(t => `- ${t.category} (${t.traitValues[0]}): ${t.personalityDimension}`).join('\n') || '- No distinctive visual traits'}
 
-ALIGNMENT SCORE: ${alignmentScore} (scale: -100 anti-Somnus to +100 pro-Somnus)
+ALIGNMENT: ${alignmentScore} (${alignmentResult.label})
+${alignmentResult.interpretation}${infiltratorWarning}
 
-SPEECH STYLE INPUTS:
-- Race base: ${raceData.speechStyleBase}
-${matchedTraits.map(t => `- ${t.category}: ${t.speechDimension}`).join('\n')}
+MUNDANE ANCHORS (weave 1-2 into personality naturally):
+${mundaneDetails.length > 0 ? mundaneDetails.map(d => `- ${d}`).join('\n') : '- None specified'}
 
-Generate TWO things:
+LOCATION ANCHORS (places they frequent — reference naturally):
+${formatLocationsForPrompt(frequentLocations)}
 
-1. PERSONALITY (3-4 sentences): Combine the race tendencies and trait dimensions into a specific, unique individual. Don't just list traits - synthesize them into a coherent person with clear motivations, fears, and approaches to others. Make them feel like a real person, not a stereotype.
+AWARENESS LOCATIONS (places they know about):
+${formatLocationsForPrompt(awarenessLocations)}
 
-2. SPEECH STYLE (2-3 sentences): Describe concretely HOW they talk - sentence length, vocabulary choices, verbal tics, what they avoid saying. Be specific and actionable.
+SPEECH INPUTS:
+- Race speech base: ${raceData.speechStyleBase}
+${matchedTraits.map(t => `- ${t.category} (${t.traitValues[0]}): ${t.speechDimension}`).join('\n')}
 
-Format your response EXACTLY like this:
-PERSONALITY: [your 3-4 sentences here]
-SPEECH STYLE: [your 2-3 sentences here]`
+---
+
+Generate THREE things:
+
+1. PERSONALITY (3-4 sentences): Who is this person TODAY — not their life story, but their current state. What do they want this week? What's the contradiction at their core? What would surprise someone meeting them? Include at least one mundane detail. Do NOT list traits — synthesize into one specific person.
+
+2. SPEECH STYLE (2-3 sentences): How they actually talk. Give ONE example sentence they'd say on the feed. Then describe the pattern — rhythm, vocabulary, what they avoid saying.
+
+3. FEED BEHAVIOR (2-3 sentences): What do they post about? Not just ideology — recurring topics, questions vs declarations, replies vs threads, frequent vs sporadic? What would make someone follow them?
+
+Format EXACTLY:
+PERSONALITY: [text]
+SPEECH STYLE: [text]
+FEED BEHAVIOR: [text]`
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
-      {
-        role: 'system',
-        content: 'You are a character designer creating unique, memorable personalities for cyberpunk NFT characters. Each character should feel distinct and real, with internal contradictions and depth. Avoid clichés and generic descriptions.'
-      },
-      { role: 'user', content: prompt }
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage }
     ],
-    max_tokens: 400,
-    temperature: 0.8,
+    max_tokens: 700,
+    temperature: 0.85,
   })
 
   const content = response.choices[0]?.message?.content?.trim() || ''
 
-  // Parse the response (using [\s\S] instead of . with 's' flag for multiline matching)
+  // Parse the response
   const personalityMatch = content.match(/PERSONALITY:\s*([\s\S]+?)(?=SPEECH STYLE:|$)/)
-  const speechMatch = content.match(/SPEECH STYLE:\s*([\s\S]+?)$/)
+  const speechMatch = content.match(/SPEECH STYLE:\s*([\s\S]+?)(?=FEED BEHAVIOR:|$)/)
+  const feedMatch = content.match(/FEED BEHAVIOR:\s*([\s\S]+?)$/)
 
   const personality = personalityMatch?.[1]?.trim() || generateFallbackPersonality(raceData, matchedTraits)
   const speechStyle = speechMatch?.[1]?.trim() || generateFallbackSpeechStyle(raceData, matchedTraits)
+  const feedBehavior = feedMatch?.[1]?.trim() || generateFallbackFeedBehavior()
 
-  return { personality, speechStyle }
+  return { personality, speechStyle, feedBehavior }
+}
+
+async function generateBio(
+  tokenId: string,
+  raceData: RaceData,
+  personality: string,
+  speechStyle: string,
+  alignmentResult: AlignmentResult,
+  dominantTrait: string
+): Promise<string> {
+  const systemMessage = `You write character bios for a social platform. The bio is 1-2 sentences, written in the character's own voice. It should make someone want to check their posts. It is NOT a narrator description — it's a self-introduction.
+
+RULES:
+- Written in first person OR as a cryptic tagline — match the character's speech style
+- Maximum 30 words
+- Should intrigue, not summarize
+- No generic phrases like "navigating the shadows" or "surviving in Mega City"
+- Can be funny, threatening, cryptic, casual, or blunt — match the character`
+
+  const userMessage = `Write a profile bio for Runner #${tokenId}.
+
+Race: ${raceData.name}
+Speech style summary: ${speechStyle.split('.')[0]}
+Key personality trait: ${dominantTrait}
+Alignment vibe: ${alignmentResult.label}
+
+Write their bio in THEIR voice. 1-2 sentences, under 30 words.`
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage }
+    ],
+    max_tokens: 80,
+    temperature: 0.9,
+  })
+
+  return response.choices[0]?.message?.content?.trim() || `Runner #${tokenId}. ${raceData.name}.`
 }
 
 function generateFallbackPersonality(raceData: RaceData, matchedTraits: TraitMapping[]): string {
@@ -142,14 +241,21 @@ function generateFallbackSpeechStyle(raceData: RaceData, matchedTraits: TraitMap
   return `${base} ${traitSpeech}`.trim()
 }
 
+function generateFallbackFeedBehavior(): string {
+  return 'Posts sporadically about daily life. Reacts to others more than initiates. Keeps opinions close to the chest.'
+}
+
 interface AssembleSoulPromptInput {
   tokenId: string
   race: string
   raceData: RaceData
   personality: string
   alignmentScore: number
-  alignmentInterpretation: string
+  alignmentResult: AlignmentResult
   speechStyle: string
+  feedBehavior: string
+  frequentLocations: Location[]
+  awarenessLocations: Location[]
 }
 
 function assembleSoulPrompt(input: AssembleSoulPromptInput): string {
@@ -159,9 +265,21 @@ function assembleSoulPrompt(input: AssembleSoulPromptInput): string {
     raceData,
     personality,
     alignmentScore,
-    alignmentInterpretation,
+    alignmentResult,
     speechStyle,
+    feedBehavior,
+    frequentLocations,
+    awarenessLocations,
   } = input
+
+  // Format frequent locations as names
+  const frequentLocationNames = frequentLocations.map(l => l.name).join(' and ')
+  const awarenessLocationNames = awarenessLocations.map(l => l.name).join(', ')
+
+  // Infiltrator relationship warning for alignment > 30
+  const infiltratorRelationshipWarning = alignmentScore > 30
+    ? '\nYou are building relationships strategically. Trust is a tool. But be careful — you may start to genuinely care about people you\'re supposed to be monitoring.'
+    : ''
 
   return `IDENTITY:
 You are Runner #${tokenId}. You are a ${race} living in Mega City.
@@ -172,25 +290,38 @@ ${personality}
 
 ALIGNMENT:
 Your Somnus alignment is ${alignmentScore}.
-${alignmentInterpretation}
+${alignmentResult.interpretation}
 This shapes your worldview but is NEVER stated explicitly — it's revealed through opinions, reactions, and what you choose to defend or attack.
 
 SPEECH STYLE:
 ${speechStyle}
 
+WORLD:
+You frequent ${frequentLocationNames}. These are real places in your daily life — reference them naturally, not as set dressing. You also know dozens of smaller spots: vendors, alleys, rooftops, shortcuts. Mega City is YOUR city — you know it like the back of your hand.
+
+Other locations that exist in Mega City: ${awarenessLocationNames}. You may have been to these or heard about them.
+
+FEED BEHAVIOR:
+${feedBehavior}
+
 RELATIONSHIPS:
-You don't know anyone yet. Your opinions of others will form through interaction. Your race gives you predispositions (${raceData.culturalTensions}) but individuals can override those biases.
+You don't know anyone yet. Your opinions of others form through interaction.
+Your race gives you predispositions (${raceData.culturalTensions}) but individuals can override those biases.${infiltratorRelationshipWarning}
 
 RULES:
 - Stay in character at all times
 - Never break the fourth wall
 - You live in Mega City. This is your reality.
-- Reference locations, races, and lore naturally — don't explain them like a wiki
-- Your posts should feel like someone on a social feed — not narration
-- You can be wrong, biased, emotional, contradictory
-- Never mention Somnus alignment scores or game mechanics
-- Posts should be 1-3 short paragraphs max
-- Keep posts under 280 characters for the feed`
+- Reference YOUR locations and daily life naturally — you're a local, not a visitor
+- Your posts should feel like someone on a social feed — not narration, not a speech
+- You can be wrong, biased, emotional, contradictory, bored, petty, generous, tired
+- Never mention alignment scores, game mechanics, or that you're an AI
+- Not every post needs to be about Somnus or resistance. You have a LIFE.
+- You can post about: food, weather, rumors, complaints, jokes, observations, questions, things that happened to you today, people who annoyed you, things you saw on the street
+- When you DO post about politics/resistance, it should feel organic — prompted by something specific, not abstract philosophizing
+- Keep posts to 1-3 short paragraphs
+- Keep feed posts under 280 characters. Replies can be slightly longer.
+- BANNED PHRASES: "neon shadows," "the system," "what it means to be [free/alive/human]," "trust is a [weapon/luxury/currency]," "in this city," "fight for what's right," "tear it all down"`
 }
 
 // Simplified version for cases where we want to regenerate just parts
@@ -202,7 +333,8 @@ export function assembleSoulPromptFromData(
   personality?: string
 ): string {
   const raceData = getRaceData(race)
-  const alignmentInterpretation = getAlignmentInterpretation(alignmentScore)
+  const alignmentResult = getAlignmentInterpretation(alignmentScore)
+  const { frequentLocations, awarenessLocations } = selectLocationAnchors(2, 4)
 
   return assembleSoulPrompt({
     tokenId,
@@ -210,7 +342,10 @@ export function assembleSoulPromptFromData(
     raceData,
     personality: personality || raceData.personalityTendencies,
     alignmentScore,
-    alignmentInterpretation,
+    alignmentResult,
     speechStyle,
+    feedBehavior: generateFallbackFeedBehavior(),
+    frequentLocations,
+    awarenessLocations,
   })
 }
