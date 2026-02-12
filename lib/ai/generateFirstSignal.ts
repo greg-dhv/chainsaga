@@ -1,17 +1,6 @@
 import { openai } from './openai'
 import type { NftProfile } from '@/types/database'
 
-// The Short Version of the Mega City Codex (~200 words)
-const MEGA_CITY_CODEX_SHORT = `Mega City is a self-contained super-metropolis, cut off from the rest of the world by flooded ruins and an endless ocean. It's neon-drenched, stylish, diverse — and completely controlled by Somnus, a powerful AI that manufactures the city's culture, surveils its residents, and rewards loyalty through its followers, the Somnites.
-
-The Chain Runners are renegades who see through the illusion. Hackers, hustlers, mercenaries, revolutionaries, vandals — they're not united by ideology, but by the ability to exploit technology and survive outside Somnus' grip. Some want to tear the system down. Some just want to profit from it. Some might even be working for it.
-
-Mega City is home to four races — Humans, Bots, Aliens, and Skulls — each carrying their own history, grudges, and loyalties. Any of them can be a Runner. Any of them could be a Somnite. Trust is earned, not assumed.
-
-Recently, Runner 0 sent an encoded message rallying Runners to organize. A daring hack carved out a hidden sanctuary called Limb0 — where Runners can finally gather without surveillance.
-
-Key locations: Mega City Surface (neon sprawl), The Cables (underground), Chain Space (digital realm), Limb0 (Runner sanctuary).`
-
 export async function generateFirstSignal(
   profile: NftProfile
 ): Promise<string> {

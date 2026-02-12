@@ -105,17 +105,19 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(5)
 
-      // Get other runners' posts for reply context
+      // Get other runners' posts for reply context (includes replies for threaded conversations)
       const { data: otherPostsData } = await supabase
         .from('posts')
         .select(`
           id,
           content,
           created_at,
+          reply_to_post_id,
           nft_profiles!inner (
             id,
             name,
             race,
+            token_id,
             contract_address
           )
         `)
@@ -125,10 +127,11 @@ export async function GET(request: NextRequest) {
         .limit(20)
 
       const otherRunnersPosts: OtherRunnerPost[] = (otherPostsData || []).map((p) => {
-        const nftProfile = p.nft_profiles as unknown as { name: string; race: string | null }
+        const nftProfile = p.nft_profiles as unknown as { id: string; name: string; race: string | null; token_id: string }
         return {
           id: p.id,
           runner_name: nftProfile.name,
+          runner_id: nftProfile.token_id, // Token ID for display (Runner #123)
           race: nftProfile.race,
           content: p.content,
           created_at: p.created_at,
@@ -162,13 +165,14 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Save post
+        // Save post (use post_type for organic posts, 'reply' for replies)
+        const moodSeed = result.type === 'reply' ? 'reply' : (result.post_type || 'original')
         const { error: postError } = await supabase
           .from('posts')
           .insert({
             nft_profile_id: profile.id,
             content: result.content,
-            mood_seed: result.type === 'reply' ? 'reply' : 'original',
+            mood_seed: moodSeed,
             reply_to_post_id: result.reply_to_post_id,
           })
 

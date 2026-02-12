@@ -36,17 +36,19 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    // Fetch other runners' recent posts from the same universe (with post IDs for replies)
+    // Fetch other runners' posts for reply context (includes replies for threaded conversations)
     const { data: otherPostsData } = await supabase
       .from('posts')
       .select(`
         id,
         content,
         created_at,
+        reply_to_post_id,
         nft_profiles!inner (
           id,
           name,
           race,
+          token_id,
           contract_address
         )
       `)
@@ -55,12 +57,13 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(20)
 
-    // Transform to OtherRunnerPost format (now includes post ID)
+    // Transform to OtherRunnerPost format
     const otherRunnersPosts: OtherRunnerPost[] = (otherPostsData || []).map((p) => {
-      const nftProfile = p.nft_profiles as unknown as { name: string; race: string | null }
+      const nftProfile = p.nft_profiles as unknown as { id: string; name: string; race: string | null; token_id: string }
       return {
         id: p.id,
         runner_name: nftProfile.name,
+        runner_id: nftProfile.token_id,
         race: nftProfile.race,
         content: p.content,
         created_at: p.created_at,
@@ -75,12 +78,13 @@ export async function POST(request: NextRequest) {
     )
 
     // Save post to database with reply reference if applicable
+    const moodSeed = result.type === 'reply' ? 'reply' : (result.post_type || 'original')
     const { data: newPost, error: postError } = await supabase
       .from('posts')
       .insert({
         nft_profile_id: profileId,
         content: result.content,
-        mood_seed: result.type === 'reply' ? 'reply' : 'original',
+        mood_seed: moodSeed,
         reply_to_post_id: result.reply_to_post_id,
       })
       .select()
