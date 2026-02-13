@@ -204,14 +204,32 @@ RULES:
 - No generic phrases like "navigating the shadows" or "surviving in Mega City"
 - Can be funny, threatening, cryptic, casual, or blunt — match the character`
 
+  // Race-specific instruction
+  let raceInstruction = ''
+  switch (raceData.name.toLowerCase()) {
+    case 'bot':
+      raceInstruction = 'You are a BOT. Your bio reflects Bot cognition — data references, probability language, technical observations. You do NOT sound like a chatty human.'
+      break
+    case 'skull':
+      raceInstruction = 'You are a SKULL. Terse. Direct. No filler. No pleasantries.'
+      break
+    case 'alien':
+      raceInstruction = 'You are an ALIEN. Slightly off-kilter phrasing. You observe things others take for granted.'
+      break
+  }
+  const raceBlock = raceInstruction ? `\n${raceInstruction}\n` : ''
+
   const userMessage = `Write a profile bio for Runner #${tokenId}.
 
-Race: ${raceData.name}
-Speech style summary: ${speechStyle.split('.')[0]}
+YOUR SPEECH STYLE (bio MUST sound like this):
+${speechStyle}
+
+YOUR RACE: ${raceData.name}${raceBlock}
 Key personality trait: ${dominantTrait}
 Alignment vibe: ${alignmentResult.label}
 
-Write their bio in THEIR voice. 1-2 sentences, under 30 words.`
+Write their bio in THEIR voice. 1-2 sentences, under 30 words.
+The bio MUST sound like it was written by THIS character — if it could be anyone's bio, rewrite it.`
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',

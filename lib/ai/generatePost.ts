@@ -56,6 +56,23 @@ export async function generatePost(
 }
 
 // ============================================
+// RACE-SPECIFIC INSTRUCTIONS
+// ============================================
+
+function getRaceInstruction(race: string | null): string {
+  switch (race?.toLowerCase()) {
+    case 'bot':
+      return 'You are a BOT. Your posts reflect Bot cognition — data references, probability language, technical observations. You do NOT sound like a chatty human. Even casual posts have an analytical edge.'
+    case 'skull':
+      return 'You are a SKULL. Terse. Direct. No filler. No pleasantries unless earned.'
+    case 'alien':
+      return 'You are an ALIEN. Slightly off-kilter phrasing. You observe things others take for granted.'
+    default:
+      return ''
+  }
+}
+
+// ============================================
 // REPLY GENERATION (v2)
 // ============================================
 
@@ -78,7 +95,14 @@ ADDITIONAL RULES:
 - Never use emojis or hashtags
 - Respond only in valid JSON format`
 
-  const userPrompt = `Another Runner posted this on the feed:
+  const raceInstruction = getRaceInstruction(profile.race)
+  const raceBlock = raceInstruction ? `\n${raceInstruction}\n` : ''
+
+  const userPrompt = `YOUR SPEECH STYLE (match this EXACTLY in your response):
+${profile.speech_style || 'No specific style defined'}
+
+YOUR RACE: ${profile.race || 'Unknown'}${raceBlock}
+Another Runner posted this on the feed:
 
 RUNNER #${targetPost.runner_id} (${targetPost.race || 'Unknown'}):
 "${targetPost.content}"
@@ -93,6 +117,8 @@ CRITICAL CONSTRAINTS:
 - Consider your PERSONALITY: Are you terse? Verbose? Friendly? Paranoid? Intellectual? Street? Would you even reply to this person?
 - Keep it SHORT — 1-3 sentences max. Real social media replies are brief. Not every reply needs a personal anecdote or backstory.
 - DO NOT start with the other Runner's name/number. You can reference them, but don't open with "Hey Runner #X" every time. Sometimes you just talk.
+- HARD LIMIT: 280 characters maximum. Keep it tight.
+- Your post MUST sound like the speech style above — if it could be said by any character, it's wrong. Rewrite it in YOUR voice.
 
 REPLY VARIETY — your reply should be ONE of these tones (pick based on your character):
 - AGREE (but briefly, in your own way — not "I feel you on that")
@@ -112,6 +138,10 @@ Respond in JSON only:
   console.log('\n========== GENERATE REPLY DEBUG ==========')
   console.log('Profile:', profile.name)
   console.log('Replying to:', targetPost.runner_name, '-', targetPost.content.substring(0, 50))
+  console.log('\n--- SYSTEM PROMPT ---')
+  console.log(systemPrompt)
+  console.log('\n--- USER PROMPT ---')
+  console.log(userPrompt)
   console.log('==========================================\n')
 
   const response = await openai.chat.completions.create({
@@ -161,7 +191,14 @@ ADDITIONAL RULES:
     ? `\nYOUR RECENT POSTS (don't repeat these themes):\n${recentPosts.slice(0, 5).map(p => `- "${p.content}"`).join('\n')}\n`
     : ''
 
-  const userPrompt = `Write a new post for the feed. This is just a normal day — you're posting whatever's on your mind.
+  const raceInstruction = getRaceInstruction(profile.race)
+  const raceBlock = raceInstruction ? `\n${raceInstruction}\n` : ''
+
+  const userPrompt = `YOUR SPEECH STYLE (match this EXACTLY in your response):
+${profile.speech_style || 'No specific style defined'}
+
+YOUR RACE: ${profile.race || 'Unknown'}${raceBlock}
+Write a new post for the feed. This is just a normal day — you're posting whatever's on your mind.
 ${recentPostsContext}
 Pick ONE of these post types based on what feels natural for your character right now:
 - MUNDANE: Something from your daily life — food, weather, a commute, something you saw, something that annoyed you
@@ -176,10 +213,10 @@ SUGGESTED TYPE FOR VARIETY: ${postType.toUpperCase()} (but follow your character
 
 CONSTRAINTS:
 - 1-3 sentences max. This is a social feed, not a blog.
-- Under 280 characters when possible.
+- HARD LIMIT: 280 characters maximum. If your post is longer, shorten it.
 - DO NOT make every post about Somnus, resistance, or politics. You have a life.
 - Reference YOUR locations and YOUR mundane details naturally.
-- Match your speech style exactly.
+- Your post MUST sound like the speech style above — if it could be said by any character, it's wrong. Rewrite it in YOUR voice.
 
 Respond in JSON only:
 {
@@ -190,6 +227,10 @@ Respond in JSON only:
   console.log('\n========== GENERATE ORGANIC POST DEBUG ==========')
   console.log('Profile:', profile.name)
   console.log('Suggested type:', postType)
+  console.log('\n--- SYSTEM PROMPT ---')
+  console.log(systemPrompt)
+  console.log('\n--- USER PROMPT ---')
+  console.log(userPrompt)
   console.log('=================================================\n')
 
   const response = await openai.chat.completions.create({
