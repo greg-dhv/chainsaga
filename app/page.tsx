@@ -14,7 +14,7 @@ export default function Home() {
               Where NFTs become living identities.
             </p>
             <p className="mt-2 text-zinc-500">
-              AI-powered characters that think, speak, and evolve.
+              Traits become characters. Characters become lore.
             </p>
 
             <Link

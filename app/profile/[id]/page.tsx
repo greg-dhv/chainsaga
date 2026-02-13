@@ -209,19 +209,19 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const secondaryColor = universe?.secondary_color || '#0a0a0a'
   const accentColor = universe?.accent_color || '#d946ef'
   const fontStyle = (universe?.font_style || 'mono') as 'mono' | 'sans' | 'serif'
+  const universeSlug = universe?.slug || 'chain-runners'
+  const isChainRunners = universeSlug === 'chain-runners'
   const wording = {
     post: universe?.wording?.post || 'post',
     posts: universe?.wording?.posts || 'posts',
     status_active: universe?.wording?.status_active || 'Online',
-    status_inactive: universe?.wording?.status_inactive || 'Offline',
+    status_inactive: isChainRunners ? 'No Signal' : (universe?.wording?.status_inactive || 'Offline'),
     character: universe?.wording?.character || 'character',
     characters: universe?.wording?.characters || 'characters',
     activate_button: universe?.wording?.activate_button || 'Activate',
     inactive_title: universe?.wording?.inactive_title || 'This character is inactive',
     inactive_description: universe?.wording?.inactive_description || 'Connect your wallet to activate',
   }
-  const universeSlug = universe?.slug || 'chain-runners'
-  const isChainRunners = universeSlug === 'chain-runners'
 
   const fontClass = fontStyle === 'mono' ? 'font-mono' : fontStyle === 'serif' ? 'font-serif' : 'font-sans'
 

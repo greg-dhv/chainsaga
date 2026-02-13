@@ -85,75 +85,45 @@ export default async function PostPage({ params }: PageProps) {
 
   const universe = universeData as unknown as Universe | null
 
-  // Fetch all replies to this post (flat, chronological)
-  const { data: repliesData } = await supabase
-    .from('posts')
-    .select(`
-      id,
-      content,
-      created_at,
-      reply_to_post_id,
-      nft_profiles (
+  // Recursively fetch all replies in the thread
+  // Start with direct replies to the main post
+  const allReplies: Post[] = []
+  let currentLevelIds = [id]
+
+  // Keep fetching deeper levels until no more replies found
+  while (currentLevelIds.length > 0) {
+    const { data: levelReplies } = await supabase
+      .from('posts')
+      .select(`
         id,
-        name,
-        image_url,
-        race,
-        contract_address
-      )
-    `)
-    .eq('reply_to_post_id', id)
-    .order('created_at', { ascending: true })
+        content,
+        created_at,
+        reply_to_post_id,
+        nft_profiles (
+          id,
+          name,
+          image_url,
+          race,
+          contract_address
+        )
+      `)
+      .in('reply_to_post_id', currentLevelIds)
+      .order('created_at', { ascending: true })
 
-  const replies = (repliesData || []) as unknown as Post[]
-
-  // For replies that reply to other replies within this thread, fetch parent author info
-  const replyIds = new Set(replies.map(r => r.id))
-  replyIds.add(id) // Include the main post
-
-  const repliesWithParents: ReplyWithParent[] = replies.map(reply => {
-    // If this reply is to the main post, no need for parent label
-    if (reply.reply_to_post_id === id) {
-      return { ...reply, parent_author: null }
+    if (!levelReplies || levelReplies.length === 0) {
+      break
     }
-    // If replying to another reply in this thread
-    const parentReply = replies.find(r => r.id === reply.reply_to_post_id)
-    if (parentReply) {
-      return {
-        ...reply,
-        parent_author: {
-          id: parentReply.nft_profiles.id,
-          name: parentReply.nft_profiles.name,
-        },
-      }
-    }
-    return { ...reply, parent_author: null }
-  })
 
-  // Also fetch replies to replies (for a full thread view)
-  const { data: nestedRepliesData } = await supabase
-    .from('posts')
-    .select(`
-      id,
-      content,
-      created_at,
-      reply_to_post_id,
-      nft_profiles (
-        id,
-        name,
-        image_url,
-        contract_address
-      )
-    `)
-    .in('reply_to_post_id', replies.map(r => r.id))
-    .order('created_at', { ascending: true })
+    const typedReplies = levelReplies as unknown as Post[]
+    allReplies.push(...typedReplies)
+    currentLevelIds = typedReplies.map(r => r.id)
+  }
 
-  const nestedReplies = (nestedRepliesData || []) as unknown as Post[]
-
-  // Combine all replies and sort chronologically
-  const allReplies = [...replies, ...nestedReplies]
+  // Build a map for parent lookup
   const allRepliesMap = new Map(allReplies.map(r => [r.id, r]))
   allRepliesMap.set(id, post) // Add main post for parent lookup
 
+  // Sort chronologically and add parent info
   const allRepliesWithParents: ReplyWithParent[] = allReplies
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .map(reply => {

@@ -72,21 +72,23 @@ export default async function UniversesPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Create New Universe Card */}
-          <Link
-            href="/create-universe"
-            className="group flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-zinc-700 bg-zinc-900/50 p-8 text-center transition-all hover:border-fuchsia-500 hover:bg-zinc-900"
+          {/* Create New Universe Card - Coming Soon */}
+          <div
+            className="relative flex cursor-not-allowed flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-8 text-center opacity-50"
           >
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-zinc-700 text-3xl text-zinc-500 transition-all group-hover:border-fuchsia-500 group-hover:text-fuchsia-400">
+            <div className="absolute right-3 top-3 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500">
+              Coming Soon
+            </div>
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-zinc-800 text-3xl text-zinc-600">
               +
             </div>
-            <h2 className="text-xl font-bold text-zinc-300 group-hover:text-fuchsia-400">
+            <h2 className="text-xl font-bold text-zinc-500">
               Initialize New Universe
             </h2>
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-sm text-zinc-600">
               Introduce a new NFT collection into a living universe.
             </p>
-          </Link>
+          </div>
 
           {/* Active Universes from Database */}
           {universesWithImages.map((universe) => (
