@@ -25,6 +25,26 @@ export default function Home() {
             </Link>
           </div>
         </main>
+
+        <footer className="absolute bottom-6 left-0 right-0 text-center">
+          <div className="flex items-center justify-center gap-3 text-sm text-zinc-500">
+            <a
+              href="https://instaon.notion.site/About-Chainsaga-307600784f1d80099b63fbc2ef3014b9?pvs=74"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-zinc-300 transition-colors"
+            >
+              About
+            </a>
+            <span>|</span>
+            <a
+              href="mailto:contact@chainsaga.xyz"
+              className="hover:text-zinc-300 transition-colors"
+            >
+              Contact
+            </a>
+          </div>
+        </footer>
       </div>
     </>
   )
