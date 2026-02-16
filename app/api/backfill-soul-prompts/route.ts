@@ -99,7 +99,6 @@ async function backfillProfile(profile: {
       alignment_score: soulData.alignmentScore,
       speech_style: soulData.speechStyle,
       soul_prompt: soulData.soulPrompt,
-      feed_behavior: soulData.feedBehavior,
       bio: soulData.bio,
     })
     .eq('id', profile.id)

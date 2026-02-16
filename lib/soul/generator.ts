@@ -18,7 +18,6 @@ export interface SoulPromptResult {
   race: string
   alignmentScore: number
   speechStyle: string
-  feedBehavior: string
   bio: string
   soulPrompt: string
   isInfiltrator: boolean
@@ -51,8 +50,33 @@ export async function generateSoulPrompt(
   // Step 5: Select location anchors
   const { frequentLocations, awarenessLocations } = selectLocationAnchors(2, 4)
 
-  // Step 6: Generate personality, speech style, and feed behavior using AI
-  const { personality, speechStyle, feedBehavior } = await generatePersonalityAndSpeech(
+  // DEBUG: Log trait matching results
+  console.log('\n========== SOUL GENERATION DEBUG ==========')
+  console.log('Token ID:', tokenId)
+  console.log('Race:', race)
+  console.log('\nINPUT TRAITS from NFT:')
+  traits.forEach(t => console.log(`  - ${t.trait_type}: ${t.value}`))
+  console.log('\nMATCHED TRAITS (found in trait-mappings.ts):')
+  if (matchedTraits.length === 0) {
+    console.log('  ⚠️  NO TRAITS MATCHED!')
+  } else {
+    matchedTraits.forEach(t => console.log(`  ✓ ${t.category}: ${t.personalityDimension.substring(0, 60)}...`))
+  }
+  console.log('\nUNMATCHED TRAITS (no mapping found):')
+  const matchedValues = matchedTraits.flatMap(m => m.traitValues.map(v => v.toLowerCase()))
+  const unmatchedTraits = traits.filter(t => {
+    const val = t.value.toLowerCase()
+    return !matchedValues.some(mv => val.includes(mv) || mv.includes(val))
+  })
+  if (unmatchedTraits.length === 0) {
+    console.log('  (all traits matched)')
+  } else {
+    unmatchedTraits.forEach(t => console.log(`  ✗ ${t.trait_type}: ${t.value}`))
+  }
+  console.log('============================================\n')
+
+  // Step 6: Generate personality and speech style using AI
+  const { personality, speechStyle } = await generatePersonalityAndSpeech(
     tokenId,
     raceData,
     matchedTraits,
@@ -80,7 +104,6 @@ export async function generateSoulPrompt(
     alignmentScore,
     alignmentResult,
     speechStyle,
-    feedBehavior,
     frequentLocations,
     awarenessLocations,
   })
@@ -89,7 +112,6 @@ export async function generateSoulPrompt(
     race,
     alignmentScore,
     speechStyle,
-    feedBehavior,
     bio,
     soulPrompt,
     isInfiltrator: alignmentResult.isInfiltrator,
@@ -105,7 +127,7 @@ async function generatePersonalityAndSpeech(
   mundaneDetails: string[],
   frequentLocations: Location[],
   awarenessLocations: Location[]
-): Promise<{ personality: string; speechStyle: string; feedBehavior: string }> {
+): Promise<{ personality: string; speechStyle: string }> {
 
   const systemMessage = `You are writing a character for a social feed set in Mega City — a neon-lit super-metropolis controlled by an AI called Somnus. This character posts alongside hundreds of others. They need to feel like a real person with a real life — not a character sheet, not a cyberpunk cliché, not a philosophy student.
 
@@ -152,16 +174,13 @@ ${matchedTraits.map(t => `- ${t.category} (${t.traitValues[0]}): ${t.speechDimen
 
 Generate THREE things:
 
-1. PERSONALITY (3-4 sentences): Who is this person TODAY — not their life story, but their current state. What do they want this week? What's the contradiction at their core? What would surprise someone meeting them? Include at least one mundane detail. Do NOT list traits — synthesize into one specific person.
+1. PERSONALITY (3-4 sentences): Who is this person — not their life story, but their default state. What's the contradiction at their core? What drives them? What would surprise someone meeting them? Do NOT list traits — synthesize into one specific person.
 
 2. SPEECH STYLE (2-3 sentences): How they actually talk. Give ONE example sentence they'd say on the feed. Then describe the pattern — rhythm, vocabulary, what they avoid saying.
 
-3. FEED BEHAVIOR (2-3 sentences): What do they post about? Not just ideology — recurring topics, questions vs declarations, replies vs threads, frequent vs sporadic? What would make someone follow them?
-
 Format EXACTLY:
 PERSONALITY: [text]
-SPEECH STYLE: [text]
-FEED BEHAVIOR: [text]`
+SPEECH STYLE: [text]`
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -177,14 +196,12 @@ FEED BEHAVIOR: [text]`
 
   // Parse the response
   const personalityMatch = content.match(/PERSONALITY:\s*([\s\S]+?)(?=SPEECH STYLE:|$)/)
-  const speechMatch = content.match(/SPEECH STYLE:\s*([\s\S]+?)(?=FEED BEHAVIOR:|$)/)
-  const feedMatch = content.match(/FEED BEHAVIOR:\s*([\s\S]+?)$/)
+  const speechMatch = content.match(/SPEECH STYLE:\s*([\s\S]+?)$/)
 
   const personality = personalityMatch?.[1]?.trim() || generateFallbackPersonality(raceData, matchedTraits)
   const speechStyle = speechMatch?.[1]?.trim() || generateFallbackSpeechStyle(raceData, matchedTraits)
-  const feedBehavior = feedMatch?.[1]?.trim() || generateFallbackFeedBehavior()
 
-  return { personality, speechStyle, feedBehavior }
+  return { personality, speechStyle }
 }
 
 async function generateBio(
@@ -259,10 +276,6 @@ function generateFallbackSpeechStyle(raceData: RaceData, matchedTraits: TraitMap
   return `${base} ${traitSpeech}`.trim()
 }
 
-function generateFallbackFeedBehavior(): string {
-  return 'Posts sporadically about daily life. Reacts to others more than initiates. Keeps opinions close to the chest.'
-}
-
 interface AssembleSoulPromptInput {
   tokenId: string
   race: string
@@ -271,7 +284,6 @@ interface AssembleSoulPromptInput {
   alignmentScore: number
   alignmentResult: AlignmentResult
   speechStyle: string
-  feedBehavior: string
   frequentLocations: Location[]
   awarenessLocations: Location[]
 }
@@ -285,7 +297,6 @@ function assembleSoulPrompt(input: AssembleSoulPromptInput): string {
     alignmentScore,
     alignmentResult,
     speechStyle,
-    feedBehavior,
     frequentLocations,
     awarenessLocations,
   } = input
@@ -319,9 +330,6 @@ You frequent ${frequentLocationNames}. These are real places in your daily life 
 
 Other locations that exist in Mega City: ${awarenessLocationNames}. You may have been to these or heard about them.
 
-FEED BEHAVIOR:
-${feedBehavior}
-
 RELATIONSHIPS:
 You don't know anyone yet. Your opinions of others form through interaction.
 Your race gives you predispositions (${raceData.culturalTensions}) but individuals can override those biases.${infiltratorRelationshipWarning}
@@ -337,7 +345,6 @@ RULES:
 - Not every post needs to be about Somnus or resistance. You have a LIFE.
 - You can post about: food, weather, rumors, complaints, jokes, observations, questions, things that happened to you today, people who annoyed you, things you saw on the street
 - When you DO post about politics/resistance, it should feel organic — prompted by something specific, not abstract philosophizing
-- Keep posts to 1-3 short paragraphs
 - Keep feed posts under 280 characters. Replies can be slightly longer.
 - BANNED PHRASES: "neon shadows," "the system," "what it means to be [free/alive/human]," "trust is a [weapon/luxury/currency]," "in this city," "fight for what's right," "tear it all down"`
 }
@@ -362,7 +369,6 @@ export function assembleSoulPromptFromData(
     alignmentScore,
     alignmentResult,
     speechStyle,
-    feedBehavior: generateFallbackFeedBehavior(),
     frequentLocations,
     awarenessLocations,
   })

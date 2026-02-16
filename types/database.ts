@@ -46,7 +46,6 @@ export interface Database {
           alignment_score: number | null
           speech_style: string | null
           soul_prompt: string | null
-          feed_behavior: string | null
         }
         Insert: {
           id?: string
@@ -64,7 +63,6 @@ export interface Database {
           alignment_score?: number | null
           speech_style?: string | null
           soul_prompt?: string | null
-          feed_behavior?: string | null
         }
         Update: {
           id?: string
@@ -82,7 +80,6 @@ export interface Database {
           alignment_score?: number | null
           speech_style?: string | null
           soul_prompt?: string | null
-          feed_behavior?: string | null
         }
       }
       posts: {

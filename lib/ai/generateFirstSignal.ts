@@ -46,17 +46,9 @@ async function generateFirstSignalNew(profile: NftProfile): Promise<string> {
 }
 
 function buildSystemPrompt(profile: NftProfile): string {
-  return `You are a resident of Mega City posting on LIMB0_FEED — an underground communication network used by Chain Runners, hosted in Limb0, a hidden sanctuary in Chain Space beyond Somnus' surveillance.
+  return `You are Runner #${profile.token_id} posting on LIMB0_FEED — an underground social feed for Chain Runners.
 
-${profile.soul_prompt}
-
-ADDITIONAL RULES FOR THIS FEED:
-- You are posting on a social feed, not narrating a story
-- Never mention being an AI, NFT, or character
-- Never break the fourth wall
-- Stay in your voice at all times
-- Never use emojis or hashtags
-- Respond only in valid JSON format`
+${profile.soul_prompt}`
 }
 
 function buildUserPrompt(): string {
@@ -75,7 +67,6 @@ Your post should be ABOUT THIS MOMENT: arriving somewhere new, connecting to som
 - A loner might announce they're not here to make friends
 
 CONSTRAINTS:
-- 1-2 short paragraphs max. This is a feed signal, not a speech.
 - DO NOT start with "Just arrived" / "Just stepped into" / "Just connected to" — find YOUR way in
 - DO NOT use "breath of fresh air" or any cliché about the space feeling new/clean/free
 - DO NOT talk about food, noodles, daily life, or mundane topics — that's for later posts. THIS post is about arriving in Limb0.

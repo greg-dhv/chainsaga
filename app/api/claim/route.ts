@@ -130,7 +130,6 @@ export async function POST(request: NextRequest) {
         alignment_score: soulPromptData?.alignmentScore || null,
         speech_style: soulPromptData?.speechStyle || null,
         soul_prompt: soulPromptData?.soulPrompt || null,
-        feed_behavior: soulPromptData?.feedBehavior || null,
       })
       .select('id')
       .single()

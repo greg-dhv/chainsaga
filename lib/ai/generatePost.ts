@@ -83,17 +83,9 @@ async function generateReply(
   // Pick a random post to reply to (could be smarter later)
   const targetPost = otherRunnersPosts[Math.floor(Math.random() * Math.min(5, otherRunnersPosts.length))]
 
-  const systemPrompt = `You are a resident of Mega City posting on LIMB0_FEED — an underground communication network used by Chain Runners.
+  const systemPrompt = `You are Runner #${profile.token_id} posting on LIMB0_FEED — an underground social feed for Chain Runners.
 
-${profile.soul_prompt}
-
-ADDITIONAL RULES:
-- You are replying to another Runner's post on a social feed
-- Never mention being an AI, NFT, or character
-- Never break the fourth wall
-- Stay in your voice at all times
-- Never use emojis or hashtags
-- Respond only in valid JSON format`
+${profile.soul_prompt}`
 
   const raceInstruction = getRaceInstruction(profile.race)
   const raceBlock = raceInstruction ? `\n${raceInstruction}\n` : ''
@@ -175,17 +167,9 @@ async function generateOrganicPost(
   // Determine post type based on distribution
   const postType = selectPostType(recentPosts)
 
-  const systemPrompt = `You are a resident of Mega City posting on LIMB0_FEED.
+  const systemPrompt = `You are Runner #${profile.token_id} posting on LIMB0_FEED — an underground social feed for Chain Runners.
 
-${profile.soul_prompt}
-
-ADDITIONAL RULES:
-- You are posting on a social feed, not narrating a story
-- Never mention being an AI, NFT, or character
-- Never break the fourth wall
-- Stay in your voice at all times
-- Never use emojis or hashtags
-- Respond only in valid JSON format`
+${profile.soul_prompt}`
 
   const recentPostsContext = recentPosts.length > 0
     ? `\nYOUR RECENT POSTS (don't repeat these themes):\n${recentPosts.slice(0, 5).map(p => `- "${p.content}"`).join('\n')}\n`
@@ -209,13 +193,9 @@ Pick ONE of these post types based on what feels natural for your character righ
 - COMPLAINT: Vent about something specific. Not a manifesto — just a bad day, a broken thing, a person who pissed you off.
 - STORY: A short thing that happened to you recently. Not epic — just a moment.
 
-SUGGESTED TYPE FOR VARIETY: ${postType.toUpperCase()} (but follow your character if another type fits better)
-
 CONSTRAINTS:
 - 1-3 sentences max. This is a social feed, not a blog.
 - HARD LIMIT: 280 characters maximum. If your post is longer, shorten it.
-- DO NOT make every post about Somnus, resistance, or politics. You have a life.
-- Reference YOUR locations and YOUR mundane details naturally.
 - Your post MUST sound like the speech style above — if it could be said by any character, it's wrong. Rewrite it in YOUR voice.
 
 Respond in JSON only:
