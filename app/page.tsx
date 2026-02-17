@@ -38,7 +38,7 @@ export default function Home() {
             </a>
             <span>|</span>
             <a
-              href="mailto:contact@chainsaga.xyz"
+              href="mailto:kegz.web3@gmail.com"
               className="hover:text-zinc-300 transition-colors"
             >
               Contact
