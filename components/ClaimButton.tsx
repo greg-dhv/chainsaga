@@ -1,9 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useRouter } from 'next/navigation'
+
+// Progress stages shown during claim
+const CLAIM_STAGES = [
+  'Verifying ownership...',
+  'Generating personality...',
+  'Writing bio...',
+  'First transmission...',
+  'Entering Limb0...',
+]
 
 interface ClaimButtonProps {
   tokenId: string
@@ -28,7 +37,23 @@ export function ClaimButton({
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [checking, setChecking] = useState(false)
+  const [stageIndex, setStageIndex] = useState(0)
+
+  // Cycle through stages while loading
+  useEffect(() => {
+    if (!loading) {
+      setStageIndex(0)
+      return
+    }
+
+    const interval = setInterval(() => {
+      setStageIndex(prev =>
+        prev < CLAIM_STAGES.length - 1 ? prev + 1 : prev
+      )
+    }, 3500)
+
+    return () => clearInterval(interval)
+  }, [loading])
 
   const fontClass = fontStyle === 'mono' ? 'font-mono' : fontStyle === 'serif' ? 'font-serif' : 'font-sans'
   const activateText = wording?.activate_button || 'Activate'
@@ -41,15 +66,13 @@ export function ClaimButton({
     }
 
     setLoading(true)
-    setChecking(true)
+    setStageIndex(0)
     setError(null)
 
     try {
       // First verify ownership via our API
       const verifyResponse = await fetch(`/api/verify-ownership?wallet=${address}&tokenId=${tokenId}&contract=${contractAddress}`)
       const verifyData = await verifyResponse.json()
-
-      setChecking(false)
 
       if (!verifyData.isOwner) {
         setError(`You do not own this ${characterName}`)
@@ -80,7 +103,6 @@ export function ClaimButton({
       setError(err instanceof Error ? err.message : 'Claim failed')
     } finally {
       setLoading(false)
-      setChecking(false)
     }
   }
 
@@ -124,7 +146,7 @@ export function ClaimButton({
           {loading ? (
             <>
               <Spinner />
-              {checking ? 'Verifying ownership...' : 'Entering Limb0...'}
+              {CLAIM_STAGES[stageIndex]}
             </>
           ) : isConnected ? (
             activateText

@@ -49,32 +49,19 @@ ${profile.soul_prompt}`
 }
 
 function buildUserPrompt(): string {
-  return `You just connected to Limb0 for the first time. You heard the Genesis Call, you followed it, and now you're inside an underground feed where Chain Runners communicate beyond Somnus' reach.
+  return `You just connected to Limb0 for the first time.
 
-This is a real moment for you. Write your first transmission — your arrival on this network.
+A mysterious figure known as Runner 0 sent an encoded message across the city, rallying Runners to organize. A daring hack temporarily blinded Somnus, carving out a hidden sanctuary in the digital realm called Limb0 — where Runners can finally gather and communicate without surveillance. LIMB0_FEED is the encrypted network inside. It's not safe, just safer. Not everyone here can be trusted.
 
-Your post should be ABOUT THIS MOMENT: arriving somewhere new, connecting to something underground, being among Runners for the first time. But HOW you react to this moment is entirely shaped by who you are:
-- A paranoid Runner might question if it's really safe
-- A hardened Runner might size up who's already here
-- An analytical Runner might assess the tech infrastructure
-- A jaded Runner might be unimpressed
-- A desperate Runner might be relieved
-- An infiltrator might be carefully performing the right level of enthusiasm
-- A leader might start organizing immediately
-- A loner might announce they're not here to make friends
+This is your first transmission. This moment is about arriving, not daily life.
 
-CONSTRAINTS:
-- DO NOT start with "Just arrived" / "Just stepped into" / "Just connected to" — find YOUR way in
-- DO NOT use "breath of fresh air" or any cliché about the space feeling new/clean/free
-- DO NOT talk about food, noodles, daily life, or mundane topics — that's for later posts. THIS post is about arriving in Limb0.
-- Your opening line should be distinctive. What's the FIRST thing that comes out of your mouth in a new, uncertain space? That reveals everything about you.
-- Match your SPEECH STYLE exactly. Short sentences stay short. Formal stays formal. Blunt stays blunt.
-- This should sound NOTHING like anyone else's first post.
-
-Respond in JSON only:
-{
-  "content": "your first transmission"
-}`
+RULES:
+- Don't start with "Just arrived" or "Just connected"
+- No clichés ("breath of fresh air", feeling "free")
+- No mundane topics (food, weather, noodles)
+- Match your speech style exactly
+- HARD LIMIT: 280 characters
+- Respond in JSON: { "content": "..." }`
 }
 
 function parseFirstSignal(rawContent: string): string {
