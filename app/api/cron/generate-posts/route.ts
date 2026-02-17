@@ -1,12 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { generatePost, type OtherRunnerPost } from '@/lib/ai/generatePost'
+import { generatePost, type OtherRunnerPost, type ThreadContext } from '@/lib/ai/generatePost'
 import type { NftProfile, Post } from '@/types/database'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// Fetch thread context for a post (up to 8 messages)
+async function fetchThreadContext(
+  postId: string,
+  contractAddress: string,
+  limit = 8
+): Promise<OtherRunnerPost[]> {
+  const thread: OtherRunnerPost[] = []
+  const postIds: string[] = [postId]
+
+  // Walk up the chain collecting post IDs first
+  let currentId = postId
+  for (let i = 0; i < limit; i++) {
+    const { data } = await supabase
+      .from('posts')
+      .select('reply_to_post_id')
+      .eq('id', currentId)
+      .single()
+
+    if (!data?.reply_to_post_id) break
+    postIds.unshift(data.reply_to_post_id)
+    currentId = data.reply_to_post_id
+  }
+
+  // Fetch all posts in the thread
+  const { data: threadPosts } = await supabase
+    .from('posts')
+    .select(`
+      id,
+      content,
+      created_at,
+      reply_to_post_id,
+      nft_profiles!inner (
+        id,
+        name,
+        race,
+        token_id,
+        contract_address
+      )
+    `)
+    .in('id', postIds)
+    .eq('nft_profiles.contract_address', contractAddress)
+    .order('created_at', { ascending: true })
+
+  if (!threadPosts) return thread
+
+  for (const p of threadPosts) {
+    const nftProfile = p.nft_profiles as unknown as {
+      id: string
+      name: string
+      race: string | null
+      token_id: string
+    }
+
+    thread.push({
+      id: p.id,
+      runner_name: nftProfile.name,
+      runner_id: nftProfile.token_id,
+      race: nftProfile.race,
+      content: p.content,
+      created_at: p.created_at,
+      reply_to_post_id: p.reply_to_post_id,
+    })
+  }
+
+  return thread
+}
 
 // Daily quotas per character
 const DAILY_ORIGINALS = 3
@@ -140,11 +207,51 @@ export async function GET(request: NextRequest) {
       })
 
       try {
+        // Decide if we should reply (based on quota and activity)
+        const shouldReply = canReply && otherRunnersPosts.length > 0 && Math.random() > 0.5
+
+        // Build thread context if replying
+        let threadContext: ThreadContext | undefined
+        if (shouldReply) {
+          const myRecentPostIds = (recentPosts || []).map(p => p.id)
+
+          // Get IDs of posts we've already replied to (to avoid double-replying)
+          const postsWeRepliedTo = (recentPosts || [])
+            .filter(p => p.reply_to_post_id)
+            .map(p => p.reply_to_post_id)
+
+          // Priority 1: Someone replied to our posts (and we haven't replied back yet)
+          const repliesToMe = otherRunnersPosts.filter(p =>
+            p.reply_to_post_id &&
+            myRecentPostIds.includes(p.reply_to_post_id) &&
+            !postsWeRepliedTo.includes(p.id)
+          )
+
+          let targetPost: OtherRunnerPost
+          if (repliesToMe.length > 0) {
+            // Reply to someone who replied to us
+            targetPost = repliesToMe[Math.floor(Math.random() * repliesToMe.length)]
+          } else {
+            // Random reply from recent posts (excluding ones we've already replied to)
+            const availablePosts = otherRunnersPosts.filter(p => !postsWeRepliedTo.includes(p.id))
+            if (availablePosts.length > 0) {
+              targetPost = availablePosts[Math.floor(Math.random() * Math.min(5, availablePosts.length))]
+            } else {
+              targetPost = otherRunnersPosts[0] // Fallback
+            }
+          }
+
+          // Fetch thread context for the reply
+          const thread = await fetchThreadContext(targetPost.id, profile.contract_address)
+          threadContext = { posts: thread, targetPost }
+        }
+
         // Generate post
         const result = await generatePost(
           profile as unknown as NftProfile,
           (recentPosts || []) as unknown as Post[],
-          otherRunnersPosts
+          otherRunnersPosts,
+          threadContext
         )
 
         // If we got a reply but are at reply quota, try to convert or skip

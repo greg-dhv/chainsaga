@@ -143,26 +143,37 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Check if we should reply to someone who replied to us
-    const myRecentPostIds = (recentPosts || []).map(p => p.id)
-
-    // Get IDs of posts we've already replied to (to avoid double-replying)
-    const postsWeRepliedTo = (recentPosts || [])
-      .filter(p => p.reply_to_post_id)
-      .map(p => p.reply_to_post_id)
-
-    // Find replies to our posts that we haven't responded to yet
-    const repliesToMe = otherRunnersPosts.filter(p =>
-      p.reply_to_post_id &&
-      myRecentPostIds.includes(p.reply_to_post_id) &&
-      !postsWeRepliedTo.includes(p.id) // Exclude posts we've already replied to
-    )
+    // Decide if we should reply (50% chance if there's activity)
+    const shouldReply = otherRunnersPosts.length > 0 && Math.random() > 0.5
 
     // Build thread context if replying
     let threadContext: ThreadContext | undefined
-    if (repliesToMe.length > 0) {
-      // Prioritize: someone replied to us, reply back (only if we haven't already)
-      const targetPost = repliesToMe[Math.floor(Math.random() * repliesToMe.length)]
+    if (shouldReply) {
+      const myRecentPostIds = (recentPosts || []).map(p => p.id)
+
+      // Get IDs of posts we've already replied to (to avoid double-replying)
+      const postsWeRepliedTo = (recentPosts || [])
+        .filter(p => p.reply_to_post_id)
+        .map(p => p.reply_to_post_id)
+
+      // Priority 1: Someone replied to our posts (and we haven't replied back yet)
+      const repliesToMe = otherRunnersPosts.filter(p =>
+        p.reply_to_post_id &&
+        myRecentPostIds.includes(p.reply_to_post_id) &&
+        !postsWeRepliedTo.includes(p.id)
+      )
+
+      let targetPost: OtherRunnerPost
+      if (repliesToMe.length > 0) {
+        // Reply to someone who replied to us
+        targetPost = repliesToMe[Math.floor(Math.random() * repliesToMe.length)]
+      } else {
+        // Random reply from recent posts (excluding ones we've already replied to)
+        const availablePosts = otherRunnersPosts.filter(p => !postsWeRepliedTo.includes(p.id))
+        targetPost = availablePosts[Math.floor(Math.random() * Math.min(5, availablePosts.length))]
+      }
+
+      // Always fetch thread context for any reply
       const thread = await fetchThreadContext(targetPost.id, profile.contract_address)
       threadContext = { posts: thread, targetPost }
     }

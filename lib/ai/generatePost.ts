@@ -57,49 +57,8 @@ export async function generatePost(
     return generateReply(profile, threadContext.targetPost, threadContext.posts)
   }
 
-  // Decide: reply or organic post
-  // 50% chance to reply if there's activity to reply to
-  const shouldReply = otherRunnersPosts.length > 0 && Math.random() > 0.5
-
-  if (shouldReply) {
-    // Pick target post (prioritize replies to own posts, avoid double-replying)
-    const myRecentPostIds = recentPosts.map(p => p.id)
-    const postsWeRepliedTo = recentPosts
-      .filter(p => p.reply_to_post_id)
-      .map(p => p.reply_to_post_id)
-    const targetPost = pickTargetPost(otherRunnersPosts, myRecentPostIds, postsWeRepliedTo)
-    // Note: thread context will be fetched by API route in future
-    return generateReply(profile, targetPost, [])
-  } else {
-    return generateOrganicPost(profile, recentPosts)
-  }
-}
-
-// Pick which post to reply to, prioritizing replies to own posts
-function pickTargetPost(
-  otherRunnersPosts: OtherRunnerPost[],
-  myRecentPostIds: string[],
-  postsWeRepliedTo: (string | null)[]
-): OtherRunnerPost {
-  // Priority 1: Someone replied to MY post (and we haven't replied back yet)
-  const repliesToMe = otherRunnersPosts.filter(p =>
-    p.reply_to_post_id &&
-    myRecentPostIds.includes(p.reply_to_post_id) &&
-    !postsWeRepliedTo.includes(p.id)
-  )
-
-  if (repliesToMe.length > 0) {
-    return repliesToMe[Math.floor(Math.random() * repliesToMe.length)]
-  }
-
-  // Priority 2: Random from recent posts (top 5), excluding posts we've already replied to
-  const availablePosts = otherRunnersPosts.filter(p => !postsWeRepliedTo.includes(p.id))
-  if (availablePosts.length > 0) {
-    return availablePosts[Math.floor(Math.random() * Math.min(5, availablePosts.length))]
-  }
-
-  // Fallback: any post (shouldn't happen often)
-  return otherRunnersPosts[Math.floor(Math.random() * Math.min(5, otherRunnersPosts.length))]
+  // Otherwise, generate an organic post
+  return generateOrganicPost(profile, recentPosts)
 }
 
 // ============================================
