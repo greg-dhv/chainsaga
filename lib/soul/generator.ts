@@ -77,15 +77,7 @@ export async function generateSoulPrompt(
     mundaneDetails
   )
 
-  // Get dominant trait for bio generation
-  const dominantTrait = matchedTraits.length > 0
-    ? matchedTraits[0].category
-    : raceData.personalityTendencies.split('.')[0]
-
-  // Step 7: Generate bio
-  const bio = await generateBio(tokenId, raceData, personality, speechStyle, alignmentResult, dominantTrait)
-
-  // Step 8: Assemble the full soul prompt
+  // Step 6: Assemble the full soul prompt
   const soulPrompt = assembleSoulPrompt({
     tokenId,
     race,
@@ -95,6 +87,9 @@ export async function generateSoulPrompt(
     alignmentResult,
     speechStyle,
   })
+
+  // Step 7: Generate bio (using full soul_prompt for context)
+  const bio = await generateBio(tokenId, soulPrompt, speechStyle, race)
 
   return {
     race,
@@ -183,58 +178,35 @@ SPEECH STYLE: [text]`
 
 async function generateBio(
   tokenId: string,
-  raceData: RaceData,
-  personality: string,
+  soulPrompt: string,
   speechStyle: string,
-  alignmentResult: AlignmentResult,
-  dominantTrait: string
+  race: string
 ): Promise<string> {
-  const systemMessage = `You write character bios for a social platform. The bio is 1-2 sentences, written in the character's own voice. It should make someone want to check their posts. It is NOT a narrator description — it's a self-introduction.
+  const systemPrompt = `You are Runner #${tokenId} writing your own bio for LIMB0_FEED.
 
-RULES:
-- Written in first person OR as a cryptic tagline — match the character's speech style
-- Maximum 30 words
-- Should intrigue, not summarize
-- No generic phrases like "navigating the shadows" or "surviving in Mega City"
-- Can be funny, threatening, cryptic, casual, or blunt — match the character`
+${soulPrompt}`
 
-  // Race-specific instruction
-  let raceInstruction = ''
-  switch (raceData.name.toLowerCase()) {
-    case 'bot':
-      raceInstruction = 'You are a BOT. Your bio reflects Bot cognition — data references, probability language, technical observations. You do NOT sound like a chatty human.'
-      break
-    case 'skull':
-      raceInstruction = 'You are a SKULL. Terse. Direct. No filler. No pleasantries.'
-      break
-    case 'alien':
-      raceInstruction = 'You are an ALIEN. Slightly off-kilter phrasing. You observe things others take for granted.'
-      break
-  }
-  const raceBlock = raceInstruction ? `\n${raceInstruction}\n` : ''
+  const userPrompt = `Write your profile bio. 1-2 sentences, under 30 words.
 
-  const userMessage = `Write a profile bio for Runner #${tokenId}.
-
-YOUR SPEECH STYLE (bio MUST sound like this):
+YOUR SPEECH STYLE (match this EXACTLY):
 ${speechStyle}
 
-YOUR RACE: ${raceData.name}${raceBlock}
-Key personality trait: ${dominantTrait}
-Alignment vibe: ${alignmentResult.label}
-
-Write their bio in THEIR voice. 1-2 sentences, under 30 words.
-The bio MUST sound like it was written by THIS character — if it could be anyone's bio, rewrite it.`
+RULES:
+- First person or cryptic tagline — your voice, not a narrator
+- Should intrigue, not summarize
+- If any character could say it, rewrite it
+- Just the bio text, nothing else`
 
   const content = await chatCompletion({
     messages: [
-      { role: 'system', content: systemMessage },
-      { role: 'user', content: userMessage }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
     ],
     max_tokens: 80,
     temperature: 0.9,
   })
 
-  return content || `Runner #${tokenId}. ${raceData.name}.`
+  return content || `Runner #${tokenId}. ${race}.`
 }
 
 function generateFallbackPersonality(raceData: RaceData, matchedTraits: TraitMapping[]): string {
