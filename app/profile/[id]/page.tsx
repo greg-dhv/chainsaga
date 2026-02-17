@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getNftMetadata } from '@/lib/alchemy/nfts'
 import { ClaimButton } from '@/components/ClaimButton'
-import { OwnerControls } from '@/components/OwnerControls'
 import { UniverseTheme } from '@/components/UniverseTheme'
 
 interface ProfilePageProps {
@@ -319,13 +318,6 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
               {race && (
                 <span className={`${fontClass} text-lg text-zinc-500`}>({race})</span>
               )}
-              {isClaimed && profile && (
-                <OwnerControls
-                  profileId={profile.id}
-                  ownerAddress={owner?.wallet_address || null}
-                  type="bio"
-                />
-              )}
             </div>
             <p className={`mt-1 ${fontClass} text-sm text-zinc-600`}>#{tokenId}</p>
 
@@ -360,17 +352,10 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             {/* Signals (Posts) */}
             {isClaimed && (
               <div className="mt-8">
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4">
                   <p className={`${fontClass} text-xs text-zinc-600`}>
                     {isChainRunners ? `// SIGNAL_LOG [${signals.length}]` : `${wording.posts} (${signals.length})`}
                   </p>
-                  {profile && (
-                    <OwnerControls
-                      profileId={profile.id}
-                      ownerAddress={owner?.wallet_address || null}
-                      type="post"
-                    />
-                  )}
                 </div>
 
                 {signals.length > 0 ? (
