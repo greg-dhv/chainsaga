@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useRouter } from 'next/navigation'
 
@@ -33,11 +34,15 @@ export function ClaimButton({
   wording,
 }: ClaimButtonProps) {
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const { switchChain } = useSwitchChain()
   const { openConnectModal } = useConnectModal()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stageIndex, setStageIndex] = useState(0)
+
+  const isWrongNetwork = isConnected && chainId !== mainnet.id
 
   // Cycle through stages while loading
   useEffect(() => {
@@ -129,6 +134,39 @@ export function ClaimButton({
       />
     </svg>
   )
+
+  // Wrong network state
+  if (isWrongNetwork) {
+    return (
+      <div>
+        <div
+          className={`w-full border px-6 py-3 ${fontClass} text-sm`}
+          style={{
+            borderColor: '#f59e0b',
+            backgroundColor: '#f59e0b22',
+          }}
+        >
+          <p className="text-amber-400 text-center">
+            Wrong network — switch to Ethereum Mainnet to claim
+          </p>
+          <p className="text-amber-400/60 text-xs text-center mt-1">
+            Chain Runners live on Ethereum Mainnet.
+          </p>
+        </div>
+        <button
+          onClick={() => switchChain?.({ chainId: mainnet.id })}
+          className={`w-full mt-2 border px-6 py-3 ${fontClass} text-sm transition-all hover:opacity-80`}
+          style={{
+            borderColor: primaryColor,
+            backgroundColor: `${primaryColor}22`,
+            color: primaryColor,
+          }}
+        >
+          Switch to Ethereum Mainnet
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div>
