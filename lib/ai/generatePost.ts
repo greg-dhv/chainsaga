@@ -23,6 +23,7 @@ export interface OtherRunnerPost {
   race: string | null
   content: string
   created_at: string
+  reply_to_post_id: string | null
 }
 
 // Result of post generation
@@ -33,10 +34,17 @@ export interface GeneratedPostResult {
   post_type?: PostType
 }
 
+// Thread context for reply generation
+export interface ThreadContext {
+  posts: OtherRunnerPost[]
+  targetPost: OtherRunnerPost
+}
+
 export async function generatePost(
   profile: NftProfile,
   recentPosts: Post[],
-  otherRunnersPosts: OtherRunnerPost[] = []
+  otherRunnersPosts: OtherRunnerPost[] = [],
+  threadContext?: ThreadContext
 ): Promise<GeneratedPostResult> {
   // Only use new architecture for Chain Runners with soul_prompt
   if (!profile.soul_prompt) {
@@ -44,15 +52,54 @@ export async function generatePost(
     return { type: 'original', reply_to_post_id: null, content }
   }
 
+  // If thread context is provided, generate a reply
+  if (threadContext) {
+    return generateReply(profile, threadContext.targetPost, threadContext.posts)
+  }
+
   // Decide: reply or organic post
   // 50% chance to reply if there's activity to reply to
   const shouldReply = otherRunnersPosts.length > 0 && Math.random() > 0.5
 
   if (shouldReply) {
-    return generateReply(profile, otherRunnersPosts)
+    // Pick target post (prioritize replies to own posts, avoid double-replying)
+    const myRecentPostIds = recentPosts.map(p => p.id)
+    const postsWeRepliedTo = recentPosts
+      .filter(p => p.reply_to_post_id)
+      .map(p => p.reply_to_post_id)
+    const targetPost = pickTargetPost(otherRunnersPosts, myRecentPostIds, postsWeRepliedTo)
+    // Note: thread context will be fetched by API route in future
+    return generateReply(profile, targetPost, [])
   } else {
     return generateOrganicPost(profile, recentPosts)
   }
+}
+
+// Pick which post to reply to, prioritizing replies to own posts
+function pickTargetPost(
+  otherRunnersPosts: OtherRunnerPost[],
+  myRecentPostIds: string[],
+  postsWeRepliedTo: (string | null)[]
+): OtherRunnerPost {
+  // Priority 1: Someone replied to MY post (and we haven't replied back yet)
+  const repliesToMe = otherRunnersPosts.filter(p =>
+    p.reply_to_post_id &&
+    myRecentPostIds.includes(p.reply_to_post_id) &&
+    !postsWeRepliedTo.includes(p.id)
+  )
+
+  if (repliesToMe.length > 0) {
+    return repliesToMe[Math.floor(Math.random() * repliesToMe.length)]
+  }
+
+  // Priority 2: Random from recent posts (top 5), excluding posts we've already replied to
+  const availablePosts = otherRunnersPosts.filter(p => !postsWeRepliedTo.includes(p.id))
+  if (availablePosts.length > 0) {
+    return availablePosts[Math.floor(Math.random() * Math.min(5, availablePosts.length))]
+  }
+
+  // Fallback: any post (shouldn't happen often)
+  return otherRunnersPosts[Math.floor(Math.random() * Math.min(5, otherRunnersPosts.length))]
 }
 
 // ============================================
@@ -73,16 +120,24 @@ function getRaceInstruction(race: string | null): string {
 }
 
 // ============================================
-// REPLY GENERATION (v2)
+// REPLY GENERATION (v3 - with thread context)
 // ============================================
+
+// Format thread for prompt display
+function formatThread(posts: OtherRunnerPost[]): string {
+  if (posts.length === 0) return ''
+
+  return posts.map((p, i) => {
+    const indent = i === 0 ? '' : '  → '
+    return `${indent}RUNNER #${p.runner_id} (${p.race || 'Unknown'}): "${p.content}"`
+  }).join('\n')
+}
 
 async function generateReply(
   profile: NftProfile,
-  otherRunnersPosts: OtherRunnerPost[]
+  targetPost: OtherRunnerPost,
+  thread: OtherRunnerPost[]
 ): Promise<GeneratedPostResult> {
-  // Pick a random post to reply to (could be smarter later)
-  const targetPost = otherRunnersPosts[Math.floor(Math.random() * Math.min(5, otherRunnersPosts.length))]
-
   const systemPrompt = `You are Runner #${profile.token_id} posting on LIMB0_FEED — an underground social feed for Chain Runners.
 
 ${profile.soul_prompt}`
@@ -90,46 +145,31 @@ ${profile.soul_prompt}`
   const raceInstruction = getRaceInstruction(profile.race)
   const raceBlock = raceInstruction ? `\n${raceInstruction}\n` : ''
 
-  const userPrompt = `YOUR SPEECH STYLE (match this EXACTLY in your response):
+  // Build thread context section
+  const threadSection = thread.length > 0
+    ? `THREAD:\n${formatThread(thread)}\n\n`
+    : ''
+
+  const userPrompt = `YOUR SPEECH STYLE (match this EXACTLY):
 ${profile.speech_style || 'No specific style defined'}
 
 YOUR RACE: ${profile.race || 'Unknown'}${raceBlock}
-Another Runner posted this on the feed:
 
-RUNNER #${targetPost.runner_id} (${targetPost.race || 'Unknown'}):
+${threadSection}YOU ARE REPLYING TO RUNNER #${targetPost.runner_id} (${targetPost.race || 'Unknown'}):
 "${targetPost.content}"
 
-Write your reply. Your reply should reflect YOUR personality and YOUR relationship to what was said — not generic agreement.
+Reply in YOUR voice. You might agree, disagree, challenge, mock, dismiss, deflect, or not care. Not everyone is friendly.
 
-CRITICAL CONSTRAINTS:
-- DO NOT start with "Hey Runner #X, I totally get you" or any variation — that's banned
-- DO NOT validate the other Runner's feelings unless your character genuinely would
-- Your character might: agree, disagree, challenge, mock, ignore the point, change the subject, ask a suspicious question, offer practical help, one-up them, be dismissive, be hostile, be genuinely kind, be cryptic, play devil's advocate, or simply not care about what they said
-- Consider your ALIGNMENT: Are you aligned with what they're saying? Are you an infiltrator who should subtly undermine it? Are you conflicted? Are you too hardcore and think they're soft?
-- Consider your PERSONALITY: Are you terse? Verbose? Friendly? Paranoid? Intellectual? Street? Would you even reply to this person?
-- Keep it SHORT — 1-3 sentences max. Real social media replies are brief. Not every reply needs a personal anecdote or backstory.
-- DO NOT start with the other Runner's name/number. You can reference them, but don't open with "Hey Runner #X" every time. Sometimes you just talk.
-- HARD LIMIT: 280 characters maximum. Keep it tight.
-- Your post MUST sound like the speech style above — if it could be said by any character, it's wrong. Rewrite it in YOUR voice.
-
-REPLY VARIETY — your reply should be ONE of these tones (pick based on your character):
-- AGREE (but briefly, in your own way — not "I feel you on that")
-- DISAGREE (push back on what they said)
-- CHALLENGE (question their motives or logic)
-- DEFLECT (change the subject to something you care about more)
-- PRACTICAL (skip the feelings, offer concrete info or help)
-- SUSPICIOUS (why are they saying this? who benefits?)
-- DISMISSIVE (you don't care about this topic)
-- PROVOCATIVE (poke at them, test their reaction)
-
-Respond in JSON only:
-{
-  "content": "your reply"
-}`
+RULES:
+- HARD LIMIT: 200 characters.
+- Don't open with their name or number.
+- If any character could say this reply, rewrite it.
+- Respond in JSON: { "content": "..." }`
 
   console.log('\n========== GENERATE REPLY DEBUG ==========')
   console.log('Profile:', profile.name)
   console.log('Replying to:', targetPost.runner_name, '-', targetPost.content.substring(0, 50))
+  console.log('Thread context:', thread.length, 'posts')
   console.log('\n--- SYSTEM PROMPT ---')
   console.log(systemPrompt)
   console.log('\n--- USER PROMPT ---')
@@ -141,7 +181,7 @@ Respond in JSON only:
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_tokens: 300,
+    max_tokens: 200,
     temperature: 0.95,
   })
 
@@ -149,7 +189,7 @@ Respond in JSON only:
 
   return {
     type: 'reply',
-    reply_to_post_id: targetPost.id, // Always set this for replies
+    reply_to_post_id: targetPost.id,
     content,
   }
 }

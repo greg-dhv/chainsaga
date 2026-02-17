@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
           race: nftProfile.race,
           content: p.content,
           created_at: p.created_at,
+          reply_to_post_id: p.reply_to_post_id,
         }
       })
 

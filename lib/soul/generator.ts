@@ -8,11 +8,6 @@ import {
   type TraitMapping,
   type AlignmentResult
 } from './trait-mappings'
-import {
-  selectLocationAnchors,
-  formatLocationsForPrompt,
-  type Location
-} from './locations'
 
 export interface SoulPromptResult {
   race: string
@@ -47,9 +42,6 @@ export async function generateSoulPrompt(
   // Step 4: Select mundane anchors (1-2 details)
   const mundaneDetails = getMundaneDetails(matchedTraits)
 
-  // Step 5: Select location anchors
-  const { frequentLocations, awarenessLocations } = selectLocationAnchors(2, 4)
-
   // DEBUG: Log trait matching results
   console.log('\n========== SOUL GENERATION DEBUG ==========')
   console.log('Token ID:', tokenId)
@@ -75,16 +67,14 @@ export async function generateSoulPrompt(
   }
   console.log('============================================\n')
 
-  // Step 6: Generate personality and speech style using AI
+  // Step 5: Generate personality and speech style using AI
   const { personality, speechStyle } = await generatePersonalityAndSpeech(
     tokenId,
     raceData,
     matchedTraits,
     alignmentScore,
     alignmentResult,
-    mundaneDetails,
-    frequentLocations,
-    awarenessLocations
+    mundaneDetails
   )
 
   // Get dominant trait for bio generation
@@ -104,8 +94,6 @@ export async function generateSoulPrompt(
     alignmentScore,
     alignmentResult,
     speechStyle,
-    frequentLocations,
-    awarenessLocations,
   })
 
   return {
@@ -124,9 +112,7 @@ async function generatePersonalityAndSpeech(
   matchedTraits: TraitMapping[],
   alignmentScore: number,
   alignmentResult: AlignmentResult,
-  mundaneDetails: string[],
-  frequentLocations: Location[],
-  awarenessLocations: Location[]
+  mundaneDetails: string[]
 ): Promise<{ personality: string; speechStyle: string }> {
 
   const systemMessage = `You are writing a character for a social feed set in Mega City — a neon-lit super-metropolis controlled by an AI called Somnus. This character posts alongside hundreds of others. They need to feel like a real person with a real life — not a character sheet, not a cyberpunk cliché, not a philosophy student.
@@ -159,12 +145,6 @@ ${alignmentResult.interpretation}${infiltratorWarning}
 
 MUNDANE ANCHORS (weave 1-2 into personality naturally):
 ${mundaneDetails.length > 0 ? mundaneDetails.map(d => `- ${d}`).join('\n') : '- None specified'}
-
-LOCATION ANCHORS (places they frequent — reference naturally):
-${formatLocationsForPrompt(frequentLocations)}
-
-AWARENESS LOCATIONS (places they know about):
-${formatLocationsForPrompt(awarenessLocations)}
 
 SPEECH INPUTS:
 - Race speech base: ${raceData.speechStyleBase}
@@ -280,8 +260,6 @@ interface AssembleSoulPromptInput {
   alignmentScore: number
   alignmentResult: AlignmentResult
   speechStyle: string
-  frequentLocations: Location[]
-  awarenessLocations: Location[]
 }
 
 function assembleSoulPrompt(input: AssembleSoulPromptInput): string {
@@ -293,13 +271,7 @@ function assembleSoulPrompt(input: AssembleSoulPromptInput): string {
     alignmentScore,
     alignmentResult,
     speechStyle,
-    frequentLocations,
-    awarenessLocations,
   } = input
-
-  // Format frequent locations as names
-  const frequentLocationNames = frequentLocations.map(l => l.name).join(' and ')
-  const awarenessLocationNames = awarenessLocations.map(l => l.name).join(', ')
 
   // Infiltrator relationship warning for alignment > 30
   const infiltratorRelationshipWarning = alignmentScore > 30
@@ -332,19 +304,15 @@ Recently, Runner 0 sent an encoded message rallying Runners to organize. A darin
 
 LIMB0_FEED is the encrypted social network inside Limb0. It's not safe, just safer. Somnus knows it exists — they just haven't shut it down yet. And not everyone here is who they claim to be — some are Somnite sympathizers, some might be outright infiltrators. Paranoia is reasonable. Trust is earned slowly.
 
-You frequent ${frequentLocationNames}. These are real places in your daily life — reference them naturally, not as set dressing. You also know dozens of smaller unnamed spots — vendors, alleys, rooftops, shortcuts.
-
-Other locations in Mega City: ${awarenessLocationNames}. You may have been to these or heard about them.
+Mega City has layers — the Surface with its neon towers, markets, and surveilled plazas; The Cables below, a tangled underground where outcasts hide. You know countless unnamed spots: restaurants, repair shops, rooftops, alleys, bars you don't talk about. Invent places freely. Not every post needs a location.
 
 RELATIONSHIPS:
-You don't know anyone yet. Your opinions of others form through interaction.
 Your race gives you predispositions (${raceData.culturalTensions}) but individuals can override those biases.${infiltratorRelationshipWarning}
 
 RULES:
 - Stay in character at all times
 - Never break the fourth wall
 - You live in Mega City. This is your reality.
-- Reference YOUR locations and daily life naturally — you're a local, not a visitor
 - Your posts should feel like someone on a social feed — not narration, not a speech
 - You can be wrong, biased, emotional, contradictory, bored, petty, generous, tired
 - Never mention alignment scores, game mechanics, or that you're an AI
@@ -365,7 +333,6 @@ export function assembleSoulPromptFromData(
 ): string {
   const raceData = getRaceData(race)
   const alignmentResult = getAlignmentInterpretation(alignmentScore)
-  const { frequentLocations, awarenessLocations } = selectLocationAnchors(2, 4)
 
   return assembleSoulPrompt({
     tokenId,
@@ -375,7 +342,5 @@ export function assembleSoulPromptFromData(
     alignmentScore,
     alignmentResult,
     speechStyle,
-    frequentLocations,
-    awarenessLocations,
   })
 }
