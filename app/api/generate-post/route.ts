@@ -11,7 +11,12 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { profileId } = body
+    const { profileId, secret } = body
+
+    // Auth check - require secret in production
+    if (process.env.NODE_ENV === 'production' && secret !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     if (!profileId) {
       return NextResponse.json({ error: 'Missing profileId' }, { status: 400 })

@@ -1,4 +1,4 @@
-import { openai } from './openai'
+import { chatCompletion } from './client'
 import type { NftProfile } from '@/types/database'
 
 export async function generateFirstSignal(
@@ -26,8 +26,7 @@ async function generateFirstSignalNew(profile: NftProfile): Promise<string> {
   console.log(userPrompt)
   console.log('==========================================\n')
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const rawContent = await chatCompletion({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -35,8 +34,6 @@ async function generateFirstSignalNew(profile: NftProfile): Promise<string> {
     max_tokens: 400,
     temperature: 0.95,
   })
-
-  const rawContent = response.choices[0]?.message?.content?.trim()
 
   if (!rawContent) {
     throw new Error('No content generated')
@@ -117,8 +114,7 @@ Write a single short post (under 280 characters) that marks this moment - your a
 
 Write the post now. Just the post text, nothing else.`
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const content = await chatCompletion({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -126,8 +122,6 @@ Write the post now. Just the post text, nothing else.`
     max_tokens: 150,
     temperature: 0.9,
   })
-
-  const content = response.choices[0]?.message?.content?.trim()
 
   if (!content) {
     throw new Error('No content generated')

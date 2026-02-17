@@ -1,18 +1,18 @@
-import { openai } from './openai'
+import { chatCompletion } from './client'
 import type { NftProfile, Post } from '@/types/database'
 
 // Post types for distribution tracking
-export type PostType = 'mundane' | 'observation' | 'opinion' | 'question' | 'rumor' | 'complaint' | 'story'
+export type PostType = 'mundane' | 'observation' | 'opinion' | 'question' | 'rumor' | 'incident' | 'callout'
 
 // Target distribution percentages
 const POST_TYPE_DISTRIBUTION: Record<PostType, number> = {
-  mundane: 30,
-  observation: 15,
+  mundane: 15,
+  observation: 20,
   opinion: 15,
   question: 10,
-  rumor: 10,
-  complaint: 10,
-  story: 10,
+  rumor: 15,
+  incident: 15,
+  callout: 10,
 }
 
 // Other runner's post for reply context
@@ -136,8 +136,7 @@ Respond in JSON only:
   console.log(userPrompt)
   console.log('==========================================\n')
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const rawContent = await chatCompletion({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -146,7 +145,6 @@ Respond in JSON only:
     temperature: 0.95,
   })
 
-  const rawContent = response.choices[0]?.message?.content?.trim() || ''
   const content = parseJsonContent(rawContent)
 
   return {
@@ -184,14 +182,14 @@ ${profile.speech_style || 'No specific style defined'}
 YOUR RACE: ${profile.race || 'Unknown'}${raceBlock}
 Write a new post for the feed. This is just a normal day — you're posting whatever's on your mind.
 ${recentPostsContext}
-Pick ONE of these post types based on what feels natural for your character right now:
-- MUNDANE: Something from your daily life — food, weather, a commute, something you saw, something that annoyed you
-- OBSERVATION: Something you noticed about Mega City, the people, the streets, the vibe lately
-- OPINION: A take on something — could be Runner politics, could be about music, food, or whether The Rust Bucket has gone downhill
-- QUESTION: Ask the feed something — could be practical, rhetorical, or provocative
-- RUMOR: Something you heard — maybe true, maybe not. Share it or ask about it.
-- COMPLAINT: Vent about something specific. Not a manifesto — just a bad day, a broken thing, a person who pissed you off.
-- STORY: A short thing that happened to you recently. Not epic — just a moment.
+Pick ONE post type:
+- MUNDANE: food, commute, weather, something mundane that happened
+- OBSERVATION: something you saw, heard, or noticed — patrols, new cameras, a shop that closed, someone acting suspicious, a district that feels different
+- OPINION: an opinion on Runner politics, Somnus policy, another Runner's post, something controversial
+- QUESTION: ask the feed something — provocative, practical, or paranoid
+- RUMOR: something you heard through the grapevine — could be true, could be dangerous, could be nothing
+- INCIDENT: something that happened to you — a close call, a confrontation, a weird encounter, something that shook you
+- CALLOUT: challenge someone, question someone's motives, defend someone, pick a fight, or call out something you think is wrong
 
 CONSTRAINTS:
 - 1-3 sentences max. This is a social feed, not a blog.
@@ -201,7 +199,7 @@ CONSTRAINTS:
 Respond in JSON only:
 {
   "content": "your post",
-  "post_type": "mundane|observation|opinion|question|rumor|complaint|story"
+  "post_type": "mundane|observation|opinion|question|rumor|incident|callout"
 }`
 
   console.log('\n========== GENERATE ORGANIC POST DEBUG ==========')
@@ -213,8 +211,7 @@ Respond in JSON only:
   console.log(userPrompt)
   console.log('=================================================\n')
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const rawContent = await chatCompletion({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -223,7 +220,6 @@ Respond in JSON only:
     temperature: 0.95,
   })
 
-  const rawContent = response.choices[0]?.message?.content?.trim() || ''
   const { content, post_type } = parseJsonContentWithType(rawContent)
 
   return {
@@ -312,8 +308,7 @@ function selectPostType(recentPosts: Post[]): PostType {
 async function generatePostLegacy(profile: NftProfile): Promise<string> {
   const name = profile.name || 'Unknown'
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const content = await chatCompletion({
     messages: [
       {
         role: 'system',
@@ -328,5 +323,5 @@ async function generatePostLegacy(profile: NftProfile): Promise<string> {
     temperature: 0.9,
   })
 
-  return response.choices[0]?.message?.content?.trim() || 'Signal lost.'
+  return content || 'Signal lost.'
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { alchemy } from '@/lib/alchemy/client'
-import { openai } from '@/lib/ai/openai'
+import { chatCompletion } from '@/lib/ai/client'
 import { scrapeCollectionWebsite, extractWebsiteUrl, type ScrapedDesign } from '@/lib/utils/scrapeWebsite'
 
 const supabase = createClient(
@@ -246,14 +246,11 @@ Generate a JSON response with the following structure:
 
 Stay faithful to the source material! Respond with ONLY the JSON, no additional text.`
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const content = await chatCompletion({
     messages: [{ role: 'user', content: prompt }],
     max_tokens: 2000,
     temperature: 0.7,
   })
-
-  const content = response.choices[0]?.message?.content?.trim()
 
   if (!content) {
     throw new Error('Failed to generate universe config')

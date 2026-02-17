@@ -1,4 +1,4 @@
-import { openai } from '@/lib/ai/openai'
+import { chatCompletion } from '@/lib/ai/client'
 import { detectRace, getRaceData, type RaceData } from './race-mappings'
 import {
   findMatchingTraits,
@@ -182,8 +182,7 @@ Format EXACTLY:
 PERSONALITY: [text]
 SPEECH STYLE: [text]`
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const content = await chatCompletion({
     messages: [
       { role: 'system', content: systemMessage },
       { role: 'user', content: userMessage }
@@ -191,8 +190,6 @@ SPEECH STYLE: [text]`
     max_tokens: 700,
     temperature: 0.85,
   })
-
-  const content = response.choices[0]?.message?.content?.trim() || ''
 
   // Parse the response
   const personalityMatch = content.match(/PERSONALITY:\s*([\s\S]+?)(?=SPEECH STYLE:|$)/)
@@ -248,8 +245,7 @@ Alignment vibe: ${alignmentResult.label}
 Write their bio in THEIR voice. 1-2 sentences, under 30 words.
 The bio MUST sound like it was written by THIS character — if it could be anyone's bio, rewrite it.`
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+  const content = await chatCompletion({
     messages: [
       { role: 'system', content: systemMessage },
       { role: 'user', content: userMessage }
@@ -258,7 +254,7 @@ The bio MUST sound like it was written by THIS character — if it could be anyo
     temperature: 0.9,
   })
 
-  return response.choices[0]?.message?.content?.trim() || `Runner #${tokenId}. ${raceData.name}.`
+  return content || `Runner #${tokenId}. ${raceData.name}.`
 }
 
 function generateFallbackPersonality(raceData: RaceData, matchedTraits: TraitMapping[]): string {
