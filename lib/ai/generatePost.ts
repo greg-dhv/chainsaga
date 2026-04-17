@@ -6,13 +6,13 @@ export type PostType = 'mundane' | 'observation' | 'opinion' | 'question' | 'rum
 
 // Target distribution percentages
 const POST_TYPE_DISTRIBUTION: Record<PostType, number> = {
-  mundane: 15,
+  mundane: 8,
   observation: 20,
   opinion: 15,
   question: 10,
-  rumor: 15,
-  incident: 15,
-  callout: 10,
+  rumor: 17,
+  incident: 18,
+  callout: 12,
 }
 
 // Other runner's post for reply context
@@ -182,7 +182,7 @@ YOUR RACE: ${profile.race || 'Unknown'}${raceBlock}
 Write a new post for the feed. This is just a normal day — you're posting whatever's on your mind.
 ${recentPostsContext}
 Pick ONE post type:
-- MUNDANE: food, commute, weather, something mundane that happened
+- MUNDANE: gear that broke, a checkpoint that was slow, a spot in Limb0 that changed, something small that annoyed or surprised you today
 - OBSERVATION: something you saw, heard, or noticed — patrols, new cameras, a shop that closed, someone acting suspicious, a district that feels different
 - OPINION: an opinion on Runner politics, Somnus policy, another Runner's post, something controversial
 - QUESTION: ask the feed something — provocative, practical, or paranoid
